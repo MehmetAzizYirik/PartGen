@@ -5,9 +5,11 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.apache.commons.cli.CommandLine;
@@ -37,10 +39,11 @@ public class Generator {
 	public static boolean verbose = false;
 	public static int size;
 	public static int totalCapacity;
+	public static int totalValences;
 	public static int isotopes;
 	public static int[] capacity;
 	public static int[] valences;
-	public static int[] maxMultiplicity;
+	public static int[][] maxMultiplicity;
 	public static int totalHydrogen; // Total number of hydrogens.
 	public static int[] totalAtom; // Total number of atoms.
 	public static int hydrogens2distribute;
@@ -85,27 +88,39 @@ public class Generator {
 			capacity[i]=capacities.get(atomNo)*formula.getIsotopeCount(top);
 			i++;
 		}
+		
 		Generator.capacity=capacity;
 		Generator.valences=valences;
 		Generator.totalCapacity=sum(capacity);
+		Generator.totalValences=totalValences(acontainer);
 		Generator.totalAtom=totalAtom;
 		Generator.maxMultiplicity= maxMultiplicity(valences);
-		
 		return capacity;
 	}
 	
-	public static int[] maxMultiplicity(int[] valences) {
-		int comb= combination(4,2);
-		int[] mult= new int[4];
+	public static int totalValences(IAtomContainer ac) {
+		int val=0;
+		for(IAtom atom: acontainer.atoms()) {
+			val+=capacities.get(atom.getAtomicNumber())+1;
+		}
+		return val;
+	}
+	
+	public static int[][] maxMultiplicity(IAtomContainer ac) {
+		int atoms= ac.getAtomCount();
+		int comb= combination(atoms,2);
+		int[][] mult= new int[atoms][atoms];
 		int count=0;
-		for(int i=0;i<4;i++) {
-			for(int j=i;j<4;j++) {
-				System.out.println(i+" " +j);
-				mult[count]=Math.min(valences[0], valences[0]);
+		for(int i=0;i<atoms;i++) {
+			for(int j=i+1;j<atoms;j++) {
+				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
+					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()));
+				}else {
+					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()))-1;
+				}
 				count++;
 			}
 		}
-		System.out.println(Arrays.toString(maxMultiplicity));
 		return mult;
 	}
 	
@@ -126,6 +141,19 @@ public class Generator {
 			sum=sum+array[i];
 		}
 		return sum;
+	}
+	
+	public static int sum(int[][] array) {
+		int sum=0;
+		for(int i=0;i<array.length;i++) {
+			sum=sum+sum(array[i]);
+		}
+		return sum;
+	}
+	
+	public static int[][] copy(int[][] matrix){
+		int[][] copy = Arrays.stream(matrix).map(r -> r.clone()).toArray(int[][]::new);
+		return copy;
 	}
 	
 	public static int[] mergeArrays(List<int[]> arrays) {
@@ -158,24 +186,35 @@ public class Generator {
 		}
 		return lists;
 	}
-	public static List<int[]> combineArrays(LinkedList<List <int[]>> lists) {
-		List<int[]> comb = new ArrayList<int[]>();
-	    for (int[] s: lists.removeFirst()) {
-	    	comb.add(s);
-	    }
-	    while (!lists.isEmpty()) {
-	        List<int[]> list = lists.removeFirst();
-	        List<int[]> newComb =  new ArrayList<int[]>();
-	        for (int[] arr1: comb) { 
-	            for (int[] arr2 : list) { 
-	            	newComb.add(arraySum(arr1,arr2));
-	            }
-	        }
-	        comb = newComb;
-	    }
-	    return comb;
+	public static Set<int[][]> matr= new HashSet<int[][]>();
+	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices) {
+		int atomSize= ac.getAtomCount();
+		if(index==atomSize-1) {
+			for(int[][] mat:matrices) {
+				matr.add(mat);
+				//System.out.println(Arrays.deepToString(mat));
+			}
+			System.out.println(matr.size());
+		}else {
+			List<int[][]> list= new ArrayList<int[][]>();
+			int capa=capacities.get(ac.getAtom(index).getAtomicNumber());
+			for(int[][] mat:matrices) {
+				int dis=Math.min(capa, bonds-sum(mat));
+				int de=atomSize-(index+1);
+				if(de!=0) {
+					for(int[] dene:partition(index,dis,de,0)){
+						if(sum(dene)!=0) {
+							int[][] copy=copy(mat);
+							copy[index]=dene;
+							list.add(copy);
+						}
+					}
+				}
+			}
+			generate(ac,index+1,bonds,list);
+		}
+		return matrices;
 	}
-	
 	/**
 	 * To initialise the inputs and run the functions while recording the duration time.
 	 * @throws CDKException 
@@ -191,7 +230,7 @@ public class Generator {
 		Generator.size=ac.getAtomCount();
 		Generator.acontainer=ac;
 		setValues(formula);
-		Generator.totalHydrogen=hydrogen;
+		Generator.totalHydrogen=hydrogen;		
 		if(verbose) {
 			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
 		}
@@ -199,8 +238,7 @@ public class Generator {
 		int count=0;
 		List<int[]> iarrays= new ArrayList<int[]>();
 		int[] array = new int[0];
-		Generator.hydrogens2distribute=totalHydrogen;
-		distribute(iarrays,totalCapacity,array);
+		distribute(iarrays,(totalValences-totalHydrogen),array);
 		count=iarrays.size();
 		result= iarrays;
 		if(verbose) {
@@ -218,31 +256,39 @@ public class Generator {
 	 * These functions are built for the integer partitioning problem.
 	 */
 	
-	public static List<int[]> partition(int n, int d,int depth) {
+	public static List<int[]> partition(int index, int n, int d,int depth) {
 		if(d==depth) {
 			List<int[]> array= new ArrayList<int[]>();
 			int[] take=new int[0];
 			array.add(take);
 			return array;
 		}
-		return buildArray(n,d,depth);
-		
+		return buildArray(index, n,d,depth);	
 	}
 	
-	public static List<int[]> buildArray(int n,int d, int depth){
+	public static int index(int ind) {
+		if(ind==0) {
+			return 0;
+		}else {
+			return ind-1;
+		}
+	}
+	
+	public static List<int[]> buildArray(int index, int n,int d, int depth){
 		List<int[]> array= new ArrayList<int[]>();
 		IntStream range = IntStream.rangeClosed(0,n);
 		for(int i:range.toArray()) {
-			for(int[] item: partition(n-i,d,depth+1)) {
-				if(i<=capacity[item.length]) {
+			for(int[] item: partition(index, n-i,d,depth+1)) {
+				//System.out.println(Arrays.toString(item));
+				if(i<=2) { //maxMultipliciy almadi o matrix den.
 					item=addElement(item,i);
-			        if(item.length==d) {
-			        	if(sum(item)==totalHydrogen) {
+			        //if(item.length==d) {
+			        	//if(sum(item)==valence) {
 			        		array.add(item);
-			        	}
-			        }else {
-			        	array.add(item);
-			        }
+			        	//}
+			        //}else {
+			        	//array.add(item);
+			        //}
 				}
 			}
 		}
@@ -256,44 +302,19 @@ public class Generator {
 		return array;
 	}
 	
-	public static void distribute(List<int[]> arrays,int capacity,int[]arr) throws CloneNotSupportedException {
-		int mult=0;
-		if(arr.length==0) {
-			mult+=maxMultiplicity[0];
-		}else {
-			mult+=maxMultiplicity[arr.length-1];
-		}
-		if(capacity==0 && sum(arr)==totalCapacity){
-			if(arr.length!=size) {
-				arr=addZeros(arr,(size-arr.length));
-			}
-			System.out.println(Arrays.toString(arr));
+	public static void distribute(List<int[]> arrays,int valence,int[]arr,int atoms) throws CloneNotSupportedException {
+		if(valence==0){
+			System.out.println("n"+" "+Arrays.toString(arr));
 			arrays.add(arr);
-		}else if((size-arr.length)==1) {
-			int add=Math.min(capacity,mult);
-			capacity=capacity-add;
-			if(arr.length==0) {
-				distribute(arrays,0,addElement(arr,add)); 
-			}
-			if((arr.length)>0) {
-				if(arr[arr.length-1]<=add){ 
-					distribute(arrays,0,addElement(arr,add));
-				}
-			}
 		}else { 
-			for(int i = Math.min(mult,capacity); i > 0; i--) {
-				if(arr.length==0) {
-					distribute(arrays,(capacity-i),addElement(arr,i)); 
-				}
-				if((arr.length)>0) {
-					if(arr[arr.length-1]<=i){ 
-						distribute(arrays,(capacity-i),addElement(arr,i));
-					}
-				}
+			System.out.println(valence+" "+sum(arr));
+			int dis= Math.abs(valence-sum(arr));
+			System.out.println(dis+" "+Arrays.toString(arr)+" "+"ickisim");
+			for(int i = dis; i > 0; i--) {
+				distribute(arrays,(valence-i),addElement(arr,i),atoms); 
 			}
 		}
 	}
-	
 	
 	
 	/**
@@ -356,14 +377,56 @@ public class Generator {
 		options.addOption(verbose);	
 		return options;
 	}
-	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException {
-		Generator distribution= new Generator();
+	public static int total=6;
+	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
+		/**Generator distribution= new Generator();
 		String[] arguments1= {"-f","C6H12","-v"};
 		try {
 			distribution.parseArguments(arguments1);
 			Generator.run(Generator.formula);
 		} catch (Exception e) {
 			if (Generator.verbose) e.getCause(); 
+		}**/
+		IMolecularFormula formula= MolecularFormulaManipulator.getMolecularFormula("C6H12", builder);
+		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
+		String formulaString =MolecularFormulaManipulator.getString(formula);
+		Generator.isotopes=formula.getIsotopeCount()-1;
+		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
+		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
+		Generator.maxMultiplicity=maxMultiplicity(ac);
+		int say= ac.getAtomCount();
+		int comb= combination(say,2);
+		/**List<int[][]> matrices= new ArrayList<int[][]>();
+		System.out.println(capacities.get(ac.getAtom(0).getAtomicNumber()));
+		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber())+1,capacities.get(ac.getAtom(0).getAtomicNumber()),say,0)){
+			int[][] mat= new int[say][say];
+			mat[0]=dene;
+			matrices.add(mat);
 		}
+		System.out.println(matrices.size());
+		for(int a=1;a<ac.getAtomCount();a++) {
+			int cap=capacities.get(ac.getAtom(a).getAtomicNumber());
+			List<int[][]> matrices2= new ArrayList<int[][]>();
+			for(int[][] mat:matrices) {
+				for(int[] dene:partition(a,cap+1,cap,say,0)){
+					mat[a]=dene;
+					matrices2.add(mat);
+				}
+			}
+			System.out.println(matrices2.size());
+			matrices=matrices2;
+		}**/
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber()),say-1,0)){
+			if(sum(dene)!=0) {
+				//System.out.println(Arrays.toString(dene));
+				int[][] mat= new int[say][say];
+				mat[0]=dene;
+				matrices.add(mat);
+			}
+		}
+		
+		generate(ac,1,comb,matrices);
+		
 	}
 }
