@@ -385,18 +385,30 @@ public class Generator {
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
 		Generator.atomCount=ac.getAtomCount();
 		Generator.acontainer=ac;
-		setValues(formula);		
+		setValues(formula);	
+		Generator.maxMultiplicity=maxMultiplicity(ac);
 		if(verbose) {
-			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
+			System.out.println("For molecular formula "+ formulaString +", generating structures...");
 		}
-		List<int[]> result= new ArrayList<int[]>();
-		int count=0;
-		List<int[]> iarrays= new ArrayList<int[]>();
-		int[] array = new int[0];
-		count=iarrays.size();
-		result= iarrays;
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int[] array:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber()),0,say-1,0)){
+			if(sum(array)!=0 && sum(array)<=valences[0]) { 
+				//TODO: first line can be zero 
+				int zeros=atomCount-array.length;
+				array=addZerosF(array,zeros);
+				int[][] mat= new int[atomCount][atomCount];
+				mat[0]=array;
+				matrices.add(mat);
+			}
+		}
+		
+		List<int[][]> output= new ArrayList<int[][]>();
+		generate(ac,1,6,matrices,output);
+		for(int[][] mat: output) {
+			System.out.println(Arrays.deepToString(mat));
+		}
 		if(verbose) {
-			System.out.println("Number of distributions: "+count);
+			System.out.println("Number of structures: "+output.size());
 		}
 		long endTime = System.nanoTime()- startTime;
         double seconds = (double) endTime / 1000000000.0;
@@ -419,9 +431,9 @@ public class Generator {
 		} catch (ParseException e) {
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.setOptionComparator(null);
-			String header = "\nFor a molecular formula, it calculates all the possible hydrogen distributions to the atoms.";
-			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/Generator";
-			formatter.printHelp( "java -jar Generator.jar", header, options, footer, true );
+			String header = "\nFor a molecular formula, it generates all possible structures";
+			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/PartGen";
+			formatter.printHelp( "java -jar partgen.jar", header, options, footer, true );
 			throw new ParseException("Problem parsing command line");
 		}
 	}
@@ -446,61 +458,13 @@ public class Generator {
 	}
 	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
-		/**Generator distribution= new Generator();
-		String[] arguments1= {"-f","C6H12","-v"};
+		Generator gen= new Generator();
+		//String[] arguments1= {"-f","C6H12","-v"};
 		try {
-			distribution.parseArguments(arguments1);
+			gen.parseArguments(arguments);
 			Generator.run(Generator.formula);
 		} catch (Exception e) {
 			if (Generator.verbose) e.getCause(); 
-		}**/
-		IMolecularFormula formula= MolecularFormulaManipulator.getMolecularFormula("C3H3", builder);
-		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
-		Generator.isotopes=formula.getIsotopeCount()-1;
-		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
-		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.maxMultiplicity=maxMultiplicity(ac);
-		int say= ac.getAtomCount();
-		int comb= combination(say,2);
-		/**List<int[][]> matrices= new ArrayList<int[][]>();
-		System.out.println(capacities.get(ac.getAtom(0).getAtomicNumber()));
-		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber())+1,capacities.get(ac.getAtom(0).getAtomicNumber()),say,0)){
-			int[][] mat= new int[say][say];
-			mat[0]=dene;
-			matrices.add(mat);
 		}
-		System.out.println(matrices.size());
-		for(int a=1;a<ac.getAtomCount();a++) {
-			int cap=capacities.get(ac.getAtom(a).getAtomicNumber());
-			List<int[][]> matrices2= new ArrayList<int[][]>();
-			for(int[][] mat:matrices) {
-				for(int[] dene:partition(a,cap+1,cap,say,0)){
-					mat[a]=dene;
-					matrices2.add(mat);
-				}
-			}
-			System.out.println(matrices2.size());
-			matrices=matrices2;
-		}**/
-		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber()),0,say-1,0)){
-			if(sum(dene)!=0 && sum(dene)<=4) {
-				int zeros=3-dene.length;
-				dene=addZerosF(dene,zeros);
-				//System.out.println(Arrays.toString(dene));
-				int[][] mat= new int[say][say];
-				mat[0]=dene;
-				matrices.add(mat);
-			}
-		}
-		
-		//bond info: sum all valences and divide by two. If there is hydrogen info. subtract that info from the result of the division
-		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,6,matrices,output);
-		for(int[][] mat: output) {
-			System.out.println(Arrays.deepToString(mat));
-		}
-		
 	}
 }
