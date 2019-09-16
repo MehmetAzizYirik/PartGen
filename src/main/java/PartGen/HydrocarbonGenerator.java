@@ -23,6 +23,8 @@ import org.apache.commons.cli.ParseException;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.IChemObjectBuilder;
 import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
@@ -38,35 +40,15 @@ public class HydrocarbonGenerator {
 	public static IAtomContainer acontainer;
 	public static boolean verbose = false;
 	public static int atomCount;
-	public static int totalCapacity;
-	public static int totalValences;
+	public static int bonds;
 	public static int isotopes;
-	public static int[] capacity;
-	public static int[] valences;
-	public static int[][] maxMultiplicity;
-	public static int totalHydrogen; // Total number of hydrogens.
-	public static int[] totalAtom; // Total number of atoms.
-	public static int hydrogens2distribute;
-	
-	static {
-		//The atom capacities from MOLGEN book. Capacity of an atom equals to 
-		capacities = new HashMap<Integer, Integer>();
-		capacities.put(6, 3);
-		capacities.put(7, 2);
-		capacities.put(8, 1);
-		capacities.put(16, 1);
-		capacities.put(15, 2);
-		capacities.put(9, 0);
-		capacities.put(53, 0);
-		capacities.put(1, 0);
-		capacities.put(17, 0);
-		capacities.put(35, 0);
-		capacities.put(53, 0);
-		
-	}
+	public static int hydrogens; 
 	
 	/**
-	 * The basic functions used in the hydrogen distributor.
+	 * Add an element ot an int array
+	 * @param a int array
+	 * @param e int value to add
+	 * @return new int array
 	 */
 	
 	public static int[] addElement(int[] a, int e) {
@@ -74,56 +56,7 @@ public class HydrocarbonGenerator {
         a[a.length - 1] = e;
         return a;
     }
-	
-	public static int[] setValues(IMolecularFormula formula) {
-		int size= formula.getIsotopeCount();
-		int[] capacity = new int[size];
-		int[] valences = new int[size];
-		int[] totalAtom = new int[size];
-		int i=0;
-		for(IIsotope top:formula.isotopes()) {
-			Integer atomNo=top.getAtomicNumber();
-			totalAtom[i]=formula.getIsotopeCount(top);
-			valences[i]=capacities.get(atomNo);
-			capacity[i]=capacities.get(atomNo)*formula.getIsotopeCount(top);
-			i++;
-		}
 		
-		Generator.capacity=capacity;
-		Generator.valences=valences;
-		Generator.totalCapacity=sum(capacity);
-		Generator.totalValences=totalValences(acontainer);
-		Generator.totalAtom=totalAtom;
-		Generator.maxMultiplicity= maxMultiplicity(valences);
-		return capacity;
-	}
-	
-	public static int totalValences(IAtomContainer ac) {
-		int val=0;
-		for(IAtom atom: acontainer.atoms()) {
-			val+=capacities.get(atom.getAtomicNumber())+1;
-		}
-		return val;
-	}
-	
-	public static int[][] maxMultiplicity(IAtomContainer ac) {
-		int atoms= ac.getAtomCount();
-		int comb= combination(atoms,2);
-		int[][] mult= new int[atoms][atoms];
-		int count=0;
-		for(int i=0;i<atoms;i++) {
-			for(int j=i+1;j<atoms;j++) {
-				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
-					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()));
-				}else {
-					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()))-1;
-				}
-				count++;
-			}
-		}
-		return mult;
-	}
-	
 	public static int factorial(int i){
 		if (i==0){
 			return 1;
@@ -135,6 +68,11 @@ public class HydrocarbonGenerator {
 		return factorial(m) / (factorial(n) * factorial(m - n));
 	}
 	
+	/**
+	 * Sum all entires of an int array
+	 * @param array int array
+	 * @return int the sum
+	 */
 	public static int sum(int[] array) {
 		int sum=0;
 		for(int i=0;i<array.length;i++) {
@@ -142,6 +80,12 @@ public class HydrocarbonGenerator {
 		}
 		return sum;
 	}
+	
+	/**
+	 * Sum all entires of an int matrix
+	 * @param array int array
+	 * @return int the sum
+	 */
 	
 	public static int sum(int[][] array) {
 		int sum=0;
@@ -151,42 +95,91 @@ public class HydrocarbonGenerator {
 		return sum;
 	}
 	
+	/**
+	 * Copy an int matrix
+	 * @param matrix int matrix
+	 * @return int matrix
+	 */
 	public static int[][] copy(int[][] matrix){
 		int[][] copy = Arrays.stream(matrix).map(r -> r.clone()).toArray(int[][]::new);
 		return copy;
 	}
 	
-	public static int[] mergeArrays(List<int[]> arrays) {
-		int size = 0;
-		for (int[] array : arrays) {
-			size += array.length;
-		}
-		int[] mergedArray = new int[size];
-		int index = 0;
-		for (int[] array : arrays) {
-			for (int i : array) {
-				mergedArray[index++] = i;
-		    }
-		}
-		return mergedArray;
+	/**
+	 * Get a column from a matrix
+	 * @param matrix an int matrix 
+	 * @param index index of a column
+	 * @return int array, column
+	 */
+	
+	public static int[] getColumn(int[][] matrix, int index){
+	    int size=matrix[0].length;
+		int[] column = new int[size]; 
+	    for(int i=0; i<size; i++){
+	       column[i] = matrix[i][index];
+	    }
+	    return column;
 	}
 	
-	public static int[] arraySum(int[] a, int[] b) {
-		List<int[]> arrays= new ArrayList<int[]>();
-		arrays.add(a);
-		arrays.add(b);
-		return mergeArrays(arrays);
-	}
+	/**
+	 * Valence check for an adjacecny matrix
+	 * @param mat int matrix
+	 * @param valence valence of an atom
+	 * @return boolean 
+	 */
 	
-	public static List<List<int[]>> buildLists(int n){
-		List<List<int[]>> lists= new ArrayList<List<int[]>>();
-		for (int i=0; i<n; ++i) {
-			List<int[]> ilist= new ArrayList<int[]>();
-			lists.add(ilist);
+	public static boolean valenceCheck(int[][] mat, int valence){
+		boolean check=true;
+		for(int i=0;i<mat.length;i++) {
+			if(!(sum(mat[i])<=valence && sum(getColumn(mat,i))<=valence)) {
+				check=false;
+				break;
+			}
 		}
-		return lists;
+		return check;	
 	}
 	
+	/**
+	 * Integer partitioning
+	 * @param index row number in the matrix
+	 * @param n integer to distribute
+	 * @param fill sum of filled entries
+	 * @param d 
+	 * @param depth
+	 * @return
+	 */
+	
+	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
+		if(d==depth) {
+			List<int[]> array= new ArrayList<int[]>();
+			int[] take=new int[0];
+			array.add(take);
+			return array;
+		}
+		return buildArray(index, n,fill,d,depth);	
+	}
+	
+	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
+		List<int[]> array= new ArrayList<int[]>();
+		for(int i=Math.min(4-fill,3);i>=0;i--) {
+			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
+				if(item.length==0) {
+					item=addElement(item,i);
+					if(sum(item)<=4) {
+						array.add(item);
+					}
+				}else {
+					if(item[item.length-1]<=i) {
+						item=addElement(item,i);
+						if(sum(item)<=4) {
+							array.add(item);
+						}
+					}
+				}
+			}
+		}
+		return array;
+	}
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
 		int atomSize= ac.getAtomCount();
 		if(index==atomSize-1) {
@@ -216,6 +209,7 @@ public class HydrocarbonGenerator {
 		}
 		return matrices;
 	}
+	
 	/**
 	 * To initialise the inputs and run the functions while recording the duration time.
 	 * @throws CDKException 
@@ -225,25 +219,30 @@ public class HydrocarbonGenerator {
 		long startTime = System.nanoTime(); //Recording the duration time.
 		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
 		String formulaString =MolecularFormulaManipulator.getString(formula);
-		Generator.isotopes=formula.getIsotopeCount()-1;
+		HydrocarbonGenerator.isotopes=formula.getIsotopeCount()-1;
+		HydrocarbonGenerator.hydrogens=hydrogen;
 		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.atomCount=ac.getAtomCount();
-		Generator.acontainer=ac;
-		setValues(formula);
-		Generator.totalHydrogen=hydrogen;		
+		HydrocarbonGenerator.atomCount=ac.getAtomCount();
+		HydrocarbonGenerator.bonds= atomCount-1;
+		HydrocarbonGenerator.acontainer=ac;		
 		if(verbose) {
-			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
+			System.out.println("For molecular formula "+ formulaString +", generating hydrocarbons...");
 		}
-		List<int[]> result= new ArrayList<int[]>();
-		int count=0;
-		List<int[]> iarrays= new ArrayList<int[]>();
-		int[] array = new int[0];
-		distribute(iarrays,(totalValences-totalHydrogen),array);
-		count=iarrays.size();
-		result= iarrays;
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int[] array:partition(0,4,0,atomCount-1,0)){
+			if(sum(array)!=0 && sum(array)<=4) {
+				int zeros=bonds-array.length;
+				array=addZerosF(array,zeros);
+				int[][] mat= new int[atomCount][atomCount];
+				mat[0]=array;
+				matrices.add(mat);
+			}
+		}
+		List<int[][]> output= new ArrayList<int[][]>();
+		generate(ac,1,6,matrices,output);
 		if(verbose) {
-			System.out.println("Number of distributions: "+count);
+			System.out.println("Number of hydrocarbons: "+output.size());
 		}
 		long endTime = System.nanoTime()- startTime;
         double seconds = (double) endTime / 1000000000.0;
@@ -254,116 +253,11 @@ public class HydrocarbonGenerator {
 	}
 	
 	/**
-	 * These functions are built for the integer partitioning problem.
+	 * Adding zeros to the front of an array
+	 * @param array int array
+	 * @param zeros number of zeros to add
+	 * @return updated int array
 	 */
-	
-	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
-		if(d==depth) {
-			List<int[]> array= new ArrayList<int[]>();
-			int[] take=new int[0];
-			array.add(take);
-			return array;
-		}
-		return buildArray(index, n,fill,d,depth);	
-	}
-	
-	public static int index(int ind) {
-		if(ind==0) {
-			return 0;
-		}else {
-			return ind-1;
-		}
-	}
-	
-	public static int[] getColumn(int[][] array, int index){
-	    int size=array[0].length;
-		int[] column = new int[size]; 
-	    for(int i=0; i<size; i++){
-	       column[i] = array[i][index];
-	    }
-	    return column;
-	}
-	
-	public static boolean valenceCheck(int[][] mat, int valence){
-		boolean check=true;
-		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valence && sum(getColumn(mat,i))<=valence)) {
-				check=false;
-				break;
-			}
-		}
-		return check;	
-	}
-	
-	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
-		List<int[]> array= new ArrayList<int[]>();
-		//IntStream range = IntStream.rangeClosed(0,n);
-		for(int i=Math.min(4-fill,3);i>=0;i--) {
-			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
-				//System.out.println(Arrays.toString(item));
-				//if(i) { //maxMultipliciy almadi o matrix den.
-				if(item.length==0) {
-					item=addElement(item,i);
-					if(sum(item)<=4) {
-						array.add(item);
-					}
-				}else {
-					if(item[item.length-1]<=i) {
-						item=addElement(item,i);
-						if(sum(item)<=4) {
-							array.add(item);
-						}
-					}
-				}
-			        //if(item.length==d) {
-			        	//if(sum(item)==valence) {
-			        		//array.add(item);
-			        	//}
-			        //}else {
-			        	//array.add(item);
-			        //}
-				//}
-			}
-		}
-		return array;
-	}
-	
-	
-	public static void distribute(List<int[]> arrays,int bonds, int con, int[]arr) throws CloneNotSupportedException {
-		if(bonds==0){
-			System.out.println(Arrays.toString(arr));
-			arrays.add(arr);
-		}else if((con-arr.length)==1) {
-			int add=Math.min(bonds,3);
-			bonds=bonds-add;
-			if(arr.length==0) {
-				distribute(arrays,0,con,addElement(arr,add)); 
-			}
-			if((arr.length)>0) {
-				if(arr[arr.length-1]<=add){ 
-					distribute(arrays,0,con,addElement(arr,add));
-				}
-			}
-		}else { 
-			for(int i = Math.min(3,bonds); i > 0; i--) {
-				if(arr.length==0) {
-					distribute(arrays,(bonds-i),con,addElement(arr,i)); 
-				}
-				if((arr.length)>0) {
-					if(arr[arr.length-1]<=i){ 
-						distribute(arrays,(bonds-i),con,addElement(arr,i));
-					}
-				}
-			}
-		}
-	}
-	
-	public static int[] addZeros(int[] array, int zeros) {
-		for(int i=0;i<zeros;i++) {
-			array=addElement(array,0);
-		}
-		return array;
-	}
 	
 	public static int[] addZerosF(int[] array, int zeros) {
 		int[] arr= new int[zeros];
@@ -376,41 +270,55 @@ public class HydrocarbonGenerator {
 		return arr;
 	}
 	
-	public static void distribute(List<int[]> arrays,int valence,int[]arr,int atoms) throws CloneNotSupportedException {
-		if(valence==0){
-			System.out.println("n"+" "+Arrays.toString(arr));
-			arrays.add(arr);
-		}else { 
-			System.out.println(valence+" "+sum(arr));
-			int dis= Math.abs(valence-sum(arr));
-			System.out.println(dis+" "+Arrays.toString(arr)+" "+"ickisim");
-			for(int i = dis; i > 0; i--) {
-				distribute(arrays,(valence-i),addElement(arr,i),atoms); 
-			}
-		}
-	}
-	
-	
 	/**
-	 * Functions seting the implicit hydrogens of the atoms.
-	 * @throws CloneNotSupportedException 
+	 * Generate atomcontainers for a list of adjacency matrices.
+	 * @param adcacencyMatrices 
+	 * @return list of atomcontainers
+	 * @throws CloneNotSupportedException
 	 */
 	
-	public static List<IAtomContainer> generateAtomContainers(List<int[]> distributions) throws CloneNotSupportedException{
+	public static List<IAtomContainer> generateAtomContainers(List<int[][]> adcacencyMatrices) throws CloneNotSupportedException{
 		List<IAtomContainer> acontainers= new ArrayList<IAtomContainer>();
-		for(int[] array:distributions) {
+		for(int[][] adjacency:adcacencyMatrices) {
 			IAtomContainer ac=acontainer.clone();
-			acontainers.add(setHydrogens(ac,array));
+			acontainers.add(setBonds(ac,adjacency));
 		}
 		return acontainers;
 	}
 	
-	public static IAtomContainer setHydrogens(IAtomContainer ac,int[] distribution) throws CloneNotSupportedException {
+	/**
+	 * Setting bonds to an atomContainer
+	 * @param ac
+	 * @param adjacency
+	 * @return
+	 * @throws CloneNotSupportedException
+	 */
+	public static IAtomContainer setBonds(IAtomContainer ac,int[][] adjacency) throws CloneNotSupportedException {
 		IAtomContainer ac2=ac.clone();
-		for(int i=0;i<distribution.length;i++) {
-			ac2.getAtom(i).setImplicitHydrogenCount(distribution[i]);
+		for(int i=0;i<adjacency.length;i++) {
+			for(int j=i+1;j<adjacency.length;j++) {
+				addBond(ac2,i,j,adjacency[i][j]);
+			}
 		}
 		return ac2;
+	}
+	
+	/**
+	 * Add a bond to a atomcontainer
+	 * @param ac atomcontainer
+	 * @param i first index
+	 * @param j second index
+	 * @param order bond order
+	 */
+	
+	public static void addBond(IAtomContainer ac, int i, int j, int order) {
+		if(order==1) {
+			ac.addBond(i, j, Order.SINGLE);
+		}else if(order==2) {
+			ac.addBond(i, j, Order.DOUBLE);
+		}else if(order==3) {
+			ac.addBond(i, j, Order.TRIPLE);
+		}
 	}
 	
 	void parseArguments(String[] arguments) throws ParseException
@@ -451,63 +359,15 @@ public class HydrocarbonGenerator {
 		options.addOption(verbose);	
 		return options;
 	}
-	public static int total=6;
+	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
-		/**Generator distribution= new Generator();
-		String[] arguments1= {"-f","C6H12","-v"};
+		HydrocarbonGenerator gen= new HydrocarbonGenerator();
+		//String[] arguments1= {"-f","C6H12","-v"};
 		try {
-			distribution.parseArguments(arguments1);
-			Generator.run(Generator.formula);
+			gen.parseArguments(arguments);
+			HydrocarbonGenerator.run(HydrocarbonGenerator.formula);
 		} catch (Exception e) {
-			if (Generator.verbose) e.getCause(); 
-		}**/
-		IMolecularFormula formula= MolecularFormulaManipulator.getMolecularFormula("C3H3", builder);
-		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
-		Generator.isotopes=formula.getIsotopeCount()-1;
-		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
-		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.maxMultiplicity=maxMultiplicity(ac);
-		int say= ac.getAtomCount();
-		int comb= combination(say,2);
-		/**List<int[][]> matrices= new ArrayList<int[][]>();
-		System.out.println(capacities.get(ac.getAtom(0).getAtomicNumber()));
-		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber())+1,capacities.get(ac.getAtom(0).getAtomicNumber()),say,0)){
-			int[][] mat= new int[say][say];
-			mat[0]=dene;
-			matrices.add(mat);
+			if (HydrocarbonGenerator.verbose) e.getCause(); 
 		}
-		System.out.println(matrices.size());
-		for(int a=1;a<ac.getAtomCount();a++) {
-			int cap=capacities.get(ac.getAtom(a).getAtomicNumber());
-			List<int[][]> matrices2= new ArrayList<int[][]>();
-			for(int[][] mat:matrices) {
-				for(int[] dene:partition(a,cap+1,cap,say,0)){
-					mat[a]=dene;
-					matrices2.add(mat);
-				}
-			}
-			System.out.println(matrices2.size());
-			matrices=matrices2;
-		}**/
-		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int[] dene:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber()),0,say-1,0)){
-			if(sum(dene)!=0 && sum(dene)<=4) {
-				int zeros=3-dene.length;
-				dene=addZerosF(dene,zeros);
-				//System.out.println(Arrays.toString(dene));
-				int[][] mat= new int[say][say];
-				mat[0]=dene;
-				matrices.add(mat);
-			}
-		}
-		
-		//bond info: sum all valences and divide by two. If there is hydrogen info. subtract that info from the result of the division
-		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,6,matrices,output);
-		for(int[][] mat: output) {
-			System.out.println(Arrays.deepToString(mat));
-		}
-		
 	}
 }
