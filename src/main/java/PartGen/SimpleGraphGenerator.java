@@ -1,4 +1,5 @@
 package PartGen;
+
 import java.io.FileNotFoundException;
 import java.io.UnsupportedEncodingException;
 import java.text.DecimalFormat;
@@ -22,30 +23,28 @@ import org.apache.commons.cli.ParseException;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.IChemObjectBuilder;
 import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
-import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.silent.AtomContainer;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 
-public class Generator {
+public class SimpleGraphGenerator {
 	public static IChemObjectBuilder builder =SilentChemObjectBuilder.getInstance();
 	public static IMolecularFormula formula=null;
 	public static IAtomContainer acontainer;
-	public static Map<Integer, Integer> capacities;
 	public static boolean verbose = false;
 	public static int atomCount;
-	public static int totalCapacity;
-	public static int totalValences;
-	public static int hydrogens;
+	public static int bonds;
 	public static int isotopes;
-	public static int[] capacity;
+	public static int hydrogens;
 	public static int[] valences;
-	public static int[][] maxMultiplicity;
+	public static Map<Integer, Integer> capacities;
 	
 	static {
 		//The atom capacities from MOLGEN book. Capacity of an atom equals to 
@@ -63,7 +62,6 @@ public class Generator {
 		capacities.put(53, 0);
 		
 	}
-	
 	/**
 	 * Add an element ot an int array
 	 * @param a int array
@@ -142,74 +140,21 @@ public class Generator {
 	}
 	
 	/**
-	 * Adding zeros to the front of an array
-	 * @param array int array
-	 * @param zeros number of zeros to add
-	 * @return updated int array
-	 */
-	
-	public static int[] addZerosF(int[] array, int zeros) {
-		int[] arr= new int[zeros];
-		for(int i=0;i<zeros;i++) {
-			arr[i]=0;
-		}
-		for(int i=0;i<array.length;i++) {
-			arr=addElement(arr, array[i]);
-		}
-		return arr;
-	}
-	
-	/**
-	 * Summing valences of all the atoms
-	 * @param ac atomcontainer
-	 * @return int summation of all valences.
-	 */
-	
-	public static int totalValences(IAtomContainer ac) {
-		int val=0;
-		for(IAtom atom: acontainer.atoms()) {
-			val+=capacities.get(atom.getAtomicNumber())+1;
-		}
-		return val;
-	}
-	
-	/**
 	 * Valence check for an adjacecny matrix
 	 * @param mat int matrix
 	 * @param valence valence of an atom
 	 * @return boolean 
 	 */
 	
-	public static boolean valenceCheck(int[][] mat){
+	public static boolean valenceCheck(int[][] mat, int valence){
 		boolean check=true;
 		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
+			if(!(sum(mat[i])<=valence && sum(getColumn(mat,i))<=valence)) {
 				check=false;
 				break;
 			}
 		}
 		return check;	
-	}
-	
-	/**
-	 * Maximum multiplicities between atom pairs in an atomcontainer. 
-	 * @param ac atomcontainer
-	 * @return int[][] maximum multiplicity matrix
-	 */
-	
-	public static int[][] maxMultiplicity(IAtomContainer ac) {
-		int atoms= ac.getAtomCount();
-		int[][] mult= new int[atoms][atoms];
-		for(int i=0;i<atoms;i++) {
-			for(int j=i+1;j<atoms;j++) {
-				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
-					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()));
-				}else {
-					mult[i][j]=capacities.get(ac.getAtom(i).getAtomicNumber())-1;
-				}
-			}
-		}
-		return mult;
 	}
 	
 	/**
@@ -234,10 +179,8 @@ public class Generator {
 		
 		Generator.capacity=capacity;
 		Generator.valences=valences;
-		Generator.totalValences=totalValences(acontainer);
 		return capacity;
 	}
-	
 	/**
 	 * Integer partitioning
 	 * @param index row number in the matrix
@@ -260,17 +203,17 @@ public class Generator {
 	
 	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
 		List<int[]> array= new ArrayList<int[]>();
-		for(int i=Math.min(valences[depth]-fill,maxMultiplicity[index][depth]);i>=0;i--) {
+		for(int i=Math.min(4-fill,3);i>=0;i--) {
 			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
 				if(item.length==0) {
 					item=addElement(item,i);
-					if(sum(item)<=valences[item.length-1]) {
+					if(sum(item)<=4) {
 						array.add(item);
 					}
 				}else {
 					if(item[item.length-1]<=i) {
 						item=addElement(item,i);
-						if(sum(item)<=valences[item.length-1]) {
+						if(sum(item)<=4) {
 							array.add(item);
 						}
 					}
@@ -303,21 +246,82 @@ public class Generator {
 				int dis=bonds-sum(mat);
 				int de=atomSize-(index+1);
 				if(de!=0) {
-					for(int[] array:partition(index,dis,sum(mat[index]),de,0)){
-						if(sum(array)!=0 && sum(array)<=valences[index]) {
+					for(int[] dene:partition(index,dis,sum(mat[index]),de,0)){
+						if(sum(dene)!=0 && sum(dene)<=4) {
 							List<int[][]> list= new ArrayList<int[][]>();
-							int zeros=atomSize-array.length;
-							array=addZerosF(array,zeros);
+							int zeros=atomSize-dene.length;
+							dene=addZerosF(dene,zeros);
 							int[][] copy=copy(mat);
-							copy[index]=array;
+							copy[index]=dene;
 							list.add(copy);
 							generate(ac,index+1,bonds-sum(copy),list,output);
 						}
 					}
 				}
-			}
+			}			
 		}
 		return matrices;
+	}
+	
+	/**
+	 * To initialise the inputs and run the functions while recording the duration time.
+	 * @throws CDKException 
+	 */
+	
+	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
+		long startTime = System.nanoTime(); //Recording the duration time.
+		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
+		String formulaString =MolecularFormulaManipulator.getString(formula);
+		SimpleGraphGenerator.isotopes=formula.getIsotopeCount()-1;
+		SimpleGraphGenerator.hydrogens=hydrogen;
+		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
+		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
+		SimpleGraphGenerator.atomCount=ac.getAtomCount();
+		SimpleGraphGenerator.bonds= atomCount-1;
+		SimpleGraphGenerator.acontainer=ac;		
+		setValues(formula);
+		if(verbose) {
+			System.out.println("For molecular formula "+ formulaString +", generating hydrocarbons...");
+		}
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int[] array:partition(0,4,0,atomCount-1,0)){
+			if(sum(array)!=0 && sum(array)<=4) {
+				int zeros=bonds-array.length;
+				array=addZerosF(array,zeros);
+				int[][] mat= new int[atomCount][atomCount];
+				mat[0]=array;
+				matrices.add(mat);
+			}
+		}
+		List<int[][]> output= new ArrayList<int[][]>();
+		generate(ac,1,combination(atomCount,2),matrices,output); 
+		if(verbose) {
+			System.out.println("Number of hydrocarbons: "+output.size());
+		}
+		long endTime = System.nanoTime()- startTime;
+        double seconds = (double) endTime / 1000000000.0;
+		DecimalFormat d = new DecimalFormat(".###");
+		if(verbose) {
+			System.out.println("Duration:"+" "+d.format(seconds));
+		}
+	}
+	
+	/**
+	 * Adding zeros to the front of an array
+	 * @param array int array
+	 * @param zeros number of zeros to add
+	 * @return updated int array
+	 */
+	
+	public static int[] addZerosF(int[] array, int zeros) {
+		int[] arr= new int[zeros];
+		for(int i=0;i<zeros;i++) {
+			arr[i]=0;
+		}
+		for(int i=0;i<array.length;i++) {
+			arr=addElement(arr, array[i]);
+		}
+		return arr;
 	}
 	
 	/**
@@ -348,78 +352,13 @@ public class Generator {
 		IAtomContainer ac2=ac.clone();
 		for(int i=0;i<adjacency.length;i++) {
 			for(int j=i+1;j<adjacency.length;j++) {
-				addBond(ac2,i,j,adjacency[i][j]);
+				ac2.addBond(i, j, Order.SINGLE);
 			}
 		}
 		return ac2;
 	}
 	
-	/**
-	 * Add a bond to a atomcontainer
-	 * @param ac atomcontainer
-	 * @param i first index
-	 * @param j second index
-	 * @param order bond order
-	 */
-	
-	public static void addBond(IAtomContainer ac, int i, int j, int order) {
-		if(order==1) {
-			ac.addBond(i, j, Order.SINGLE);
-		}else if(order==2) {
-			ac.addBond(i, j, Order.DOUBLE);
-		}else if(order==3) {
-			ac.addBond(i, j, Order.TRIPLE);
-		}
-	}
-	
-	/**
-	 * To initialise the inputs and run the functions while recording the duration time.
-	 * @throws CDKException 
-	 */
-	
-	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
-		long startTime = System.nanoTime(); //Recording the duration time.
-		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
-		Generator.isotopes=formula.getIsotopeCount()-1;
-		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
-		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.atomCount=ac.getAtomCount();
-		Generator.acontainer=ac;
-		Generator.hydrogens=hydrogen;
-		setValues(formula);	
-		Generator.maxMultiplicity=maxMultiplicity(ac);
-		if(verbose) {
-			System.out.println("For molecular formula "+ formulaString +", generating structures...");
-		}
-		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int[] array:partition(0,capacities.get(ac.getAtom(0).getAtomicNumber()),0,atomCount-1,0)){
-			if(sum(array)!=0 && sum(array)<=valences[0]) { 
-				//TODO: first line can be zero 
-				int zeros=atomCount-array.length;
-				array=addZerosF(array,zeros);
-				int[][] mat= new int[atomCount][atomCount];
-				mat[0]=array;
-				matrices.add(mat);
-			}
-		}
 
-		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,(totalValences-hydrogens)/2,matrices,output);
-		for(int[][] mat: output) {
-			System.out.println(Arrays.deepToString(mat));
-		}
-		if(verbose) {
-			System.out.println("Number of structures: "+output.size());
-		}
-		long endTime = System.nanoTime()- startTime;
-        double seconds = (double) endTime / 1000000000.0;
-		DecimalFormat d = new DecimalFormat(".###");
-		if(verbose) {
-			System.out.println("Duration:"+" "+d.format(seconds));
-		}
-	}
-	
 	void parseArguments(String[] arguments) throws ParseException
 	{
 		Options options = setupOptions(arguments);	
@@ -433,9 +372,9 @@ public class Generator {
 		} catch (ParseException e) {
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.setOptionComparator(null);
-			String header = "\nFor a molecular formula, it generates all possible structures";
-			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/PartGen";
-			formatter.printHelp( "java -jar partgen.jar", header, options, footer, true );
+			String header = "\nFor a molecular formula, it calculates all the possible hydrogen distributions to the atoms.";
+			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/Generator";
+			formatter.printHelp( "java -jar Generator.jar", header, options, footer, true );
 			throw new ParseException("Problem parsing command line");
 		}
 	}
@@ -460,13 +399,13 @@ public class Generator {
 	}
 	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
-		Generator gen= new Generator();
+		SimpleGraphGenerator gen= new SimpleGraphGenerator();
 		//String[] arguments1= {"-f","C6H12","-v"};
 		try {
 			gen.parseArguments(arguments);
-			Generator.run(Generator.formula);
+			SimpleGraphGenerator.run(SimpleGraphGenerator.formula);
 		} catch (Exception e) {
-			if (Generator.verbose) e.getCause(); 
+			if (SimpleGraphGenerator.verbose) e.getCause(); 
 		}
 	}
 }

@@ -251,8 +251,7 @@ public class HydrocarbonGenerator {
 			}
 		}
 		List<int[][]> output= new ArrayList<int[][]>();
-		//TODO: Bonds 6 ?
-		generate(ac,1,6,matrices,output); 
+		generate(ac,1,(4*atomCount-hydrogens)/2,matrices,output);  //4 is the carbon valence.
 		if(verbose) {
 			System.out.println("Number of hydrocarbons: "+output.size());
 		}
