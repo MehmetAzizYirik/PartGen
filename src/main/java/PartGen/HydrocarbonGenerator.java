@@ -1,4 +1,5 @@
 package PartGen;
+
 import java.io.FileNotFoundException;
 import java.io.UnsupportedEncodingException;
 import java.text.DecimalFormat;
@@ -31,13 +32,12 @@ import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 
-public class Generator {
+public class HydrocarbonGenerator {
 	public static IChemObjectBuilder builder =SilentChemObjectBuilder.getInstance();
 	public static IMolecularFormula formula=null;
 	public static IAtomContainer acontainer;
-	public static Map<Integer, Integer> capacities;
 	public static boolean verbose = false;
-	public static int size;
+	public static int atomCount;
 	public static int totalCapacity;
 	public static int totalValences;
 	public static int isotopes;
@@ -186,7 +186,7 @@ public class Generator {
 		}
 		return lists;
 	}
-	public static Set<int[][]> matr= new HashSet<int[][]>();
+	
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
 		int atomSize= ac.getAtomCount();
 		if(index==atomSize-1) {
@@ -196,7 +196,6 @@ public class Generator {
 				}
 			}
 		}else {
-			int capa=capacities.get(ac.getAtom(index).getAtomicNumber());
 			for(int[][] mat:matrices) {
 				int dis=bonds-sum(mat);
 				int de=atomSize-(index+1);
@@ -213,11 +212,7 @@ public class Generator {
 						}
 					}
 				}
-			}
-			/**for(int[][] m:list) {
-				generate(ac,index+1,bonds-sum(m),list);
-			}**/
-			
+			}			
 		}
 		return matrices;
 	}
@@ -233,7 +228,7 @@ public class Generator {
 		Generator.isotopes=formula.getIsotopeCount()-1;
 		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.size=ac.getAtomCount();
+		Generator.atomCount=ac.getAtomCount();
 		Generator.acontainer=ac;
 		setValues(formula);
 		Generator.totalHydrogen=hydrogen;		
