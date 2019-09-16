@@ -1,5 +1,4 @@
 package PartGen;
-
 import java.io.FileNotFoundException;
 import java.io.UnsupportedEncodingException;
 import java.text.DecimalFormat;
@@ -23,11 +22,10 @@ import org.apache.commons.cli.ParseException;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
-import org.openscience.cdk.interfaces.IBond;
-import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.interfaces.IChemObjectBuilder;
 import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.silent.AtomContainer;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -38,13 +36,15 @@ public class SimpleGraphGenerator {
 	public static IChemObjectBuilder builder =SilentChemObjectBuilder.getInstance();
 	public static IMolecularFormula formula=null;
 	public static IAtomContainer acontainer;
+	public static Map<Integer, Integer> capacities;
 	public static boolean verbose = false;
 	public static int atomCount;
-	public static int bonds;
-	public static int isotopes;
+	public static int totalCapacity;
+	public static int totalValences;
 	public static int hydrogens;
+	public static int isotopes;
+	public static int[] capacity;
 	public static int[] valences;
-	public static Map<Integer, Integer> capacities;
 	
 	static {
 		//The atom capacities from MOLGEN book. Capacity of an atom equals to 
@@ -62,6 +62,7 @@ public class SimpleGraphGenerator {
 		capacities.put(53, 0);
 		
 	}
+	
 	/**
 	 * Add an element ot an int array
 	 * @param a int array
@@ -140,16 +141,48 @@ public class SimpleGraphGenerator {
 	}
 	
 	/**
+	 * Adding zeros to the front of an array
+	 * @param array int array
+	 * @param zeros number of zeros to add
+	 * @return updated int array
+	 */
+	
+	public static int[] addZerosF(int[] array, int zeros) {
+		int[] arr= new int[zeros];
+		for(int i=0;i<zeros;i++) {
+			arr[i]=0;
+		}
+		for(int i=0;i<array.length;i++) {
+			arr=addElement(arr, array[i]);
+		}
+		return arr;
+	}
+	
+	/**
+	 * Summing valences of all the atoms
+	 * @param ac atomcontainer
+	 * @return int summation of all valences.
+	 */
+	
+	public static int totalValences(IAtomContainer ac) {
+		int val=0;
+		for(IAtom atom: acontainer.atoms()) {
+			val+=capacities.get(atom.getAtomicNumber())+1;
+		}
+		return val;
+	}
+	
+	/**
 	 * Valence check for an adjacecny matrix
 	 * @param mat int matrix
 	 * @param valence valence of an atom
 	 * @return boolean 
 	 */
 	
-	public static boolean valenceCheck(int[][] mat, int valence){
+	public static boolean valenceCheck(int[][] mat){
 		boolean check=true;
 		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valence && sum(getColumn(mat,i))<=valence)) {
+			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
 				check=false;
 				break;
 			}
@@ -177,10 +210,12 @@ public class SimpleGraphGenerator {
 			i++;
 		}
 		
-		Generator.capacity=capacity;
-		Generator.valences=valences;
+		SimpleGraphGenerator.capacity=capacity;
+		SimpleGraphGenerator.valences=valences;
+		SimpleGraphGenerator.totalValences=totalValences(acontainer);
 		return capacity;
 	}
+	
 	/**
 	 * Integer partitioning
 	 * @param index row number in the matrix
@@ -203,17 +238,17 @@ public class SimpleGraphGenerator {
 	
 	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
 		List<int[]> array= new ArrayList<int[]>();
-		for(int i=Math.min(4-fill,3);i>=0;i--) {
+		for(int i=0;i<2;i++) {
 			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
 				if(item.length==0) {
 					item=addElement(item,i);
-					if(sum(item)<=4) {
+					if(sum(item)<=valences[item.length-1]) {
 						array.add(item);
 					}
 				}else {
 					if(item[item.length-1]<=i) {
 						item=addElement(item,i);
-						if(sum(item)<=4) {
+						if(sum(item)<=valences[item.length-1]) {
 							array.add(item);
 						}
 					}
@@ -238,90 +273,29 @@ public class SimpleGraphGenerator {
 		if(index==atomSize-1) {
 			for(int[][] mat:matrices) {
 				if(valenceCheck(mat)) {
+					System.out.println(Arrays.deepToString(mat));
 					output.add(mat);
 				}
 			}
 		}else {
 			for(int[][] mat:matrices) {
-				int dis=bonds-sum(mat);
 				int de=atomSize-(index+1);
 				if(de!=0) {
-					for(int[] dene:partition(index,dis,sum(mat[index]),de,0)){
-						if(sum(dene)!=0 && sum(dene)<=4) {
+					for(int[] array:partition(index,atomCount-index,sum(mat[index]),de,0)){
+						if(sum(array)!=0 && sum(array)<=valences[index]) {
 							List<int[][]> list= new ArrayList<int[][]>();
-							int zeros=atomSize-dene.length;
-							dene=addZerosF(dene,zeros);
+							int zeros=atomSize-array.length;
+							array=addZerosF(array,zeros);
 							int[][] copy=copy(mat);
-							copy[index]=dene;
+							copy[index]=array;
 							list.add(copy);
 							generate(ac,index+1,bonds-sum(copy),list,output);
 						}
 					}
 				}
-			}			
-		}
-		return matrices;
-	}
-	
-	/**
-	 * To initialise the inputs and run the functions while recording the duration time.
-	 * @throws CDKException 
-	 */
-	
-	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
-		long startTime = System.nanoTime(); //Recording the duration time.
-		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
-		SimpleGraphGenerator.isotopes=formula.getIsotopeCount()-1;
-		SimpleGraphGenerator.hydrogens=hydrogen;
-		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
-		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		SimpleGraphGenerator.atomCount=ac.getAtomCount();
-		SimpleGraphGenerator.bonds= atomCount-1;
-		SimpleGraphGenerator.acontainer=ac;		
-		setValues(formula);
-		if(verbose) {
-			System.out.println("For molecular formula "+ formulaString +", generating hydrocarbons...");
-		}
-		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int[] array:partition(0,4,0,atomCount-1,0)){
-			if(sum(array)!=0 && sum(array)<=4) {
-				int zeros=bonds-array.length;
-				array=addZerosF(array,zeros);
-				int[][] mat= new int[atomCount][atomCount];
-				mat[0]=array;
-				matrices.add(mat);
 			}
 		}
-		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,combination(atomCount,2),matrices,output); 
-		if(verbose) {
-			System.out.println("Number of hydrocarbons: "+output.size());
-		}
-		long endTime = System.nanoTime()- startTime;
-        double seconds = (double) endTime / 1000000000.0;
-		DecimalFormat d = new DecimalFormat(".###");
-		if(verbose) {
-			System.out.println("Duration:"+" "+d.format(seconds));
-		}
-	}
-	
-	/**
-	 * Adding zeros to the front of an array
-	 * @param array int array
-	 * @param zeros number of zeros to add
-	 * @return updated int array
-	 */
-	
-	public static int[] addZerosF(int[] array, int zeros) {
-		int[] arr= new int[zeros];
-		for(int i=0;i<zeros;i++) {
-			arr[i]=0;
-		}
-		for(int i=0;i<array.length;i++) {
-			arr=addElement(arr, array[i]);
-		}
-		return arr;
+		return matrices;
 	}
 	
 	/**
@@ -358,7 +332,53 @@ public class SimpleGraphGenerator {
 		return ac2;
 	}
 	
+	/**
+	 * To initialise the inputs and run the functions while recording the duration time.
+	 * @throws CDKException 
+	 */
+	
+	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
+		long startTime = System.nanoTime(); //Recording the duration time.
+		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
+		String formulaString =MolecularFormulaManipulator.getString(formula);
+		SimpleGraphGenerator.isotopes=formula.getIsotopeCount()-1;
+		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
+		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
+		SimpleGraphGenerator.atomCount=ac.getAtomCount();
+		SimpleGraphGenerator.acontainer=ac;
+		SimpleGraphGenerator.hydrogens=hydrogen;
+		setValues(formula);	
+		if(verbose) {
+			System.out.println("For molecular formula "+ formulaString +", generating structures...");
+		}
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int[] array:partition(0,atomCount-1,0,atomCount-1,0)){
+			if(sum(array)!=0 && sum(array)<=valences[0]) { 
+				//TODO: first line can be zero 
+				int zeros=atomCount-array.length;
+				array=addZerosF(array,zeros);
+				int[][] mat= new int[atomCount][atomCount];
+				mat[0]=array;
+				matrices.add(mat);
+			}
+		}
 
+		List<int[][]> output= new ArrayList<int[][]>();
+		generate(ac,1,(totalValences-hydrogens)/2,matrices,output);
+		for(int[][] mat: output) {
+			System.out.println(Arrays.deepToString(mat));
+		}
+		if(verbose) {
+			System.out.println("Number of structures: "+output.size());
+		}
+		long endTime = System.nanoTime()- startTime;
+        double seconds = (double) endTime / 1000000000.0;
+		DecimalFormat d = new DecimalFormat(".###");
+		if(verbose) {
+			System.out.println("Duration:"+" "+d.format(seconds));
+		}
+	}
+	
 	void parseArguments(String[] arguments) throws ParseException
 	{
 		Options options = setupOptions(arguments);	
@@ -372,9 +392,9 @@ public class SimpleGraphGenerator {
 		} catch (ParseException e) {
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.setOptionComparator(null);
-			String header = "\nFor a molecular formula, it calculates all the possible hydrogen distributions to the atoms.";
-			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/Generator";
-			formatter.printHelp( "java -jar Generator.jar", header, options, footer, true );
+			String header = "\nFor a molecular formula, it generates all possible structures";
+			String footer = "\nPlease report issues at https://github.com/MehmetAzizYirik/PartGen";
+			formatter.printHelp( "java -jar partgen.jar", header, options, footer, true );
 			throw new ParseException("Problem parsing command line");
 		}
 	}
@@ -399,13 +419,13 @@ public class SimpleGraphGenerator {
 	}
 	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
-		SimpleGraphGenerator gen= new SimpleGraphGenerator();
-		//String[] arguments1= {"-f","C6H12","-v"};
+		Generator gen= new Generator();
+		String[] arguments1= {"-f","C6H6","-v"};
 		try {
-			gen.parseArguments(arguments);
-			SimpleGraphGenerator.run(SimpleGraphGenerator.formula);
+			gen.parseArguments(arguments1);
+			Generator.run(Generator.formula);
 		} catch (Exception e) {
-			if (SimpleGraphGenerator.verbose) e.getCause(); 
+			if (Generator.verbose) e.getCause(); 
 		}
 	}
 }
