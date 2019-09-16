@@ -25,6 +25,7 @@ import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IChemObjectBuilder;
 import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
+import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.silent.AtomContainer;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -37,7 +38,7 @@ public class Generator {
 	public static IAtomContainer acontainer;
 	public static Map<Integer, Integer> capacities;
 	public static boolean verbose = false;
-	public static int size;
+	public static int atomCount;
 	public static int totalCapacity;
 	public static int totalValences;
 	public static int isotopes;
@@ -84,7 +85,7 @@ public class Generator {
 		for(IIsotope top:formula.isotopes()) {
 			Integer atomNo=top.getAtomicNumber();
 			totalAtom[i]=formula.getIsotopeCount(top);
-			valences[i]=capacities.get(atomNo);
+			valences[i]=capacities.get(atomNo)+1;
 			capacity[i]=capacities.get(atomNo)*formula.getIsotopeCount(top);
 			i++;
 		}
@@ -108,9 +109,7 @@ public class Generator {
 	
 	public static int[][] maxMultiplicity(IAtomContainer ac) {
 		int atoms= ac.getAtomCount();
-		int comb= combination(atoms,2);
 		int[][] mult= new int[atoms][atoms];
-		int count=0;
 		for(int i=0;i<atoms;i++) {
 			for(int j=i+1;j<atoms;j++) {
 				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
@@ -156,68 +155,32 @@ public class Generator {
 		return copy;
 	}
 	
-	public static int[] mergeArrays(List<int[]> arrays) {
-		int size = 0;
-		for (int[] array : arrays) {
-			size += array.length;
-		}
-		int[] mergedArray = new int[size];
-		int index = 0;
-		for (int[] array : arrays) {
-			for (int i : array) {
-				mergedArray[index++] = i;
-		    }
-		}
-		return mergedArray;
-	}
-	
-	public static int[] arraySum(int[] a, int[] b) {
-		List<int[]> arrays= new ArrayList<int[]>();
-		arrays.add(a);
-		arrays.add(b);
-		return mergeArrays(arrays);
-	}
-	
-	public static List<List<int[]>> buildLists(int n){
-		List<List<int[]>> lists= new ArrayList<List<int[]>>();
-		for (int i=0; i<n; ++i) {
-			List<int[]> ilist= new ArrayList<int[]>();
-			lists.add(ilist);
-		}
-		return lists;
-	}
-	public static Set<int[][]> matr= new HashSet<int[][]>();
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
 		int atomSize= ac.getAtomCount();
 		if(index==atomSize-1) {
 			for(int[][] mat:matrices) {
-				if(valenceCheck(mat,4)) {
+				if(valenceCheck(mat)) {
 					output.add(mat);
 				}
 			}
 		}else {
-			int capa=capacities.get(ac.getAtom(index).getAtomicNumber());
 			for(int[][] mat:matrices) {
 				int dis=bonds-sum(mat);
 				int de=atomSize-(index+1);
 				if(de!=0) {
-					for(int[] dene:partition(index,dis,sum(mat[index]),de,0)){
-						if(sum(dene)!=0 && sum(dene)<=4) {
+					for(int[] array:partition(index,dis,sum(mat[index]),de,0)){
+						if(sum(array)!=0 && sum(array)<=valences[index]) {
 							List<int[][]> list= new ArrayList<int[][]>();
-							int zeros=atomSize-dene.length;
-							dene=addZerosF(dene,zeros);
+							int zeros=atomSize-array.length;
+							array=addZerosF(array,zeros);
 							int[][] copy=copy(mat);
-							copy[index]=dene;
+							copy[index]=array;
 							list.add(copy);
 							generate(ac,index+1,bonds-sum(copy),list,output);
 						}
 					}
 				}
 			}
-			/**for(int[][] m:list) {
-				generate(ac,index+1,bonds-sum(m),list);
-			}**/
-			
 		}
 		return matrices;
 	}
@@ -244,7 +207,6 @@ public class Generator {
 		int count=0;
 		List<int[]> iarrays= new ArrayList<int[]>();
 		int[] array = new int[0];
-		distribute(iarrays,(totalValences-totalHydrogen),array);
 		count=iarrays.size();
 		result= iarrays;
 		if(verbose) {
@@ -258,10 +220,6 @@ public class Generator {
 		}
 	}
 	
-	/**
-	 * These functions are built for the integer partitioning problem.
-	 */
-	
 	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
 		if(d==depth) {
 			List<int[]> array= new ArrayList<int[]>();
@@ -272,14 +230,7 @@ public class Generator {
 		return buildArray(index, n,fill,d,depth);	
 	}
 	
-	public static int index(int ind) {
-		if(ind==0) {
-			return 0;
-		}else {
-			return ind-1;
-		}
-	}
-	
+
 	public static int[] getColumn(int[][] array, int index){
 	    int size=array[0].length;
 		int[] column = new int[size]; 
@@ -289,10 +240,10 @@ public class Generator {
 	    return column;
 	}
 	
-	public static boolean valenceCheck(int[][] mat, int valence){
+	public static boolean valenceCheck(int[][] mat){
 		boolean check=true;
 		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valence && sum(getColumn(mat,i))<=valence)) {
+			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
 				check=false;
 				break;
 			}
@@ -302,73 +253,32 @@ public class Generator {
 	
 	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
 		List<int[]> array= new ArrayList<int[]>();
-		//IntStream range = IntStream.rangeClosed(0,n);
-		for(int i=Math.min(4-fill,3);i>=0;i--) {
+		for(int i=Math.min(valences[depth]-fill,maxMultiplicity[index][depth]);i>=0;i--) {
 			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
-				//System.out.println(Arrays.toString(item));
-				//if(i) { //maxMultipliciy almadi o matrix den.
 				if(item.length==0) {
 					item=addElement(item,i);
-					if(sum(item)<=4) {
+					if(sum(item)<=valences[item.length-1]) {
 						array.add(item);
 					}
 				}else {
 					if(item[item.length-1]<=i) {
 						item=addElement(item,i);
-						if(sum(item)<=4) {
+						if(sum(item)<=valences[item.length-1]) {
 							array.add(item);
 						}
 					}
 				}
-			        //if(item.length==d) {
-			        	//if(sum(item)==valence) {
-			        		//array.add(item);
-			        	//}
-			        //}else {
-			        	//array.add(item);
-			        //}
-				//}
 			}
 		}
 		return array;
 	}
 	
-	
-	public static void distribute(List<int[]> arrays,int bonds, int con, int[]arr) throws CloneNotSupportedException {
-		if(bonds==0){
-			System.out.println(Arrays.toString(arr));
-			arrays.add(arr);
-		}else if((con-arr.length)==1) {
-			int add=Math.min(bonds,3);
-			bonds=bonds-add;
-			if(arr.length==0) {
-				distribute(arrays,0,con,addElement(arr,add)); 
-			}
-			if((arr.length)>0) {
-				if(arr[arr.length-1]<=add){ 
-					distribute(arrays,0,con,addElement(arr,add));
-				}
-			}
-		}else { 
-			for(int i = Math.min(3,bonds); i > 0; i--) {
-				if(arr.length==0) {
-					distribute(arrays,(bonds-i),con,addElement(arr,i)); 
-				}
-				if((arr.length)>0) {
-					if(arr[arr.length-1]<=i){ 
-						distribute(arrays,(bonds-i),con,addElement(arr,i));
-					}
-				}
-			}
-		}
-	}
-	
-	public static int[] addZeros(int[] array, int zeros) {
-		for(int i=0;i<zeros;i++) {
-			array=addElement(array,0);
-		}
-		return array;
-	}
+	/**
+	 * Adding zeros to the front of an array
+	 * @param array int array
+	 * @param zeros number of zeros to add
+	 * @return updated int array
+	 */
 	
 	public static int[] addZerosF(int[] array, int zeros) {
 		int[] arr= new int[zeros];
@@ -381,41 +291,56 @@ public class Generator {
 		return arr;
 	}
 	
-	public static void distribute(List<int[]> arrays,int valence,int[]arr,int atoms) throws CloneNotSupportedException {
-		if(valence==0){
-			System.out.println("n"+" "+Arrays.toString(arr));
-			arrays.add(arr);
-		}else { 
-			System.out.println(valence+" "+sum(arr));
-			int dis= Math.abs(valence-sum(arr));
-			System.out.println(dis+" "+Arrays.toString(arr)+" "+"ickisim");
-			for(int i = dis; i > 0; i--) {
-				distribute(arrays,(valence-i),addElement(arr,i),atoms); 
-			}
-		}
-	}
-	
-	
 	/**
-	 * Functions seting the implicit hydrogens of the atoms.
-	 * @throws CloneNotSupportedException 
+	 * Generate atomcontainers for a list of adjacency matrices.
+	 * @param adcacencyMatrices 
+	 * @return list of atomcontainers
+	 * @throws CloneNotSupportedException
 	 */
 	
-	public static List<IAtomContainer> generateAtomContainers(List<int[]> distributions) throws CloneNotSupportedException{
+	public static List<IAtomContainer> generateAtomContainers(List<int[][]> adcacencyMatrices) throws CloneNotSupportedException{
 		List<IAtomContainer> acontainers= new ArrayList<IAtomContainer>();
-		for(int[] array:distributions) {
+		for(int[][] adjacency:adcacencyMatrices) {
 			IAtomContainer ac=acontainer.clone();
-			acontainers.add(setHydrogens(ac,array));
+			acontainers.add(setBonds(ac,adjacency));
 		}
 		return acontainers;
 	}
 	
-	public static IAtomContainer setHydrogens(IAtomContainer ac,int[] distribution) throws CloneNotSupportedException {
+	/**
+	 * Setting bonds to an atomContainer
+	 * @param ac
+	 * @param adjacency
+	 * @return
+	 * @throws CloneNotSupportedException
+	 */
+	
+	public static IAtomContainer setBonds(IAtomContainer ac,int[][] adjacency) throws CloneNotSupportedException {
 		IAtomContainer ac2=ac.clone();
-		for(int i=0;i<distribution.length;i++) {
-			ac2.getAtom(i).setImplicitHydrogenCount(distribution[i]);
+		for(int i=0;i<adjacency.length;i++) {
+			for(int j=i+1;j<adjacency.length;j++) {
+				addBond(ac2,i,j,adjacency[i][j]);
+			}
 		}
 		return ac2;
+	}
+	
+	/**
+	 * Add a bond to a atomcontainer
+	 * @param ac atomcontainer
+	 * @param i first index
+	 * @param j second index
+	 * @param order bond order
+	 */
+	
+	public static void addBond(IAtomContainer ac, int i, int j, int order) {
+		if(order==1) {
+			ac.addBond(i, j, Order.SINGLE);
+		}else if(order==2) {
+			ac.addBond(i, j, Order.DOUBLE);
+		}else if(order==3) {
+			ac.addBond(i, j, Order.TRIPLE);
+		}
 	}
 	
 	void parseArguments(String[] arguments) throws ParseException
@@ -456,7 +381,7 @@ public class Generator {
 		options.addOption(verbose);	
 		return options;
 	}
-	public static int total=6;
+	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
 		/**Generator distribution= new Generator();
 		String[] arguments1= {"-f","C6H12","-v"};
