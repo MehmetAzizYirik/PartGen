@@ -180,6 +180,17 @@ public class HydrocarbonGenerator {
 		}
 		return array;
 	}
+	
+	/**
+	 * Generating adjacency matrices of an atomcontainer
+	 * @param ac atomcontainer
+	 * @param index row index of adj. matrix
+	 * @param bonds number of bonds to distribute. 
+	 * @param matrices list of filled matrices.
+	 * @param output the list of fully filled adj. matrices
+	 * @return
+	 */
+	
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
 		int atomSize= ac.getAtomCount();
 		if(index==atomSize-1) {

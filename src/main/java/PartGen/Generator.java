@@ -45,9 +45,6 @@ public class Generator {
 	public static int[] capacity;
 	public static int[] valences;
 	public static int[][] maxMultiplicity;
-	public static int totalHydrogen; // Total number of hydrogens.
-	public static int[] totalAtom; // Total number of atoms.
-	public static int hydrogens2distribute;
 	
 	static {
 		//The atom capacities from MOLGEN book. Capacity of an atom equals to 
@@ -67,7 +64,10 @@ public class Generator {
 	}
 	
 	/**
-	 * The basic functions used in the hydrogen distributor.
+	 * Add an element ot an int array
+	 * @param a int array
+	 * @param e int value to add
+	 * @return new int array
 	 */
 	
 	public static int[] addElement(int[] a, int e) {
@@ -75,6 +75,147 @@ public class Generator {
         a[a.length - 1] = e;
         return a;
     }
+		
+	public static int factorial(int i){
+		if (i==0){
+			return 1;
+		}
+		return i * factorial(i - 1);
+	}
+	
+	public static int combination(int m, int n) {
+		return factorial(m) / (factorial(n) * factorial(m - n));
+	}
+	
+	/**
+	 * Sum all entires of an int array
+	 * @param array int array
+	 * @return int the sum
+	 */
+	public static int sum(int[] array) {
+		int sum=0;
+		for(int i=0;i<array.length;i++) {
+			sum=sum+array[i];
+		}
+		return sum;
+	}
+	
+	/**
+	 * Sum all entires of an int matrix
+	 * @param array int array
+	 * @return int the sum
+	 */
+	
+	public static int sum(int[][] array) {
+		int sum=0;
+		for(int i=0;i<array.length;i++) {
+			sum=sum+sum(array[i]);
+		}
+		return sum;
+	}
+	
+	/**
+	 * Copy an int matrix
+	 * @param matrix int matrix
+	 * @return int matrix
+	 */
+	public static int[][] copy(int[][] matrix){
+		int[][] copy = Arrays.stream(matrix).map(r -> r.clone()).toArray(int[][]::new);
+		return copy;
+	}
+	
+	/**
+	 * Get a column from a matrix
+	 * @param matrix an int matrix 
+	 * @param index index of a column
+	 * @return int array, column
+	 */
+	
+	public static int[] getColumn(int[][] matrix, int index){
+	    int size=matrix[0].length;
+		int[] column = new int[size]; 
+	    for(int i=0; i<size; i++){
+	       column[i] = matrix[i][index];
+	    }
+	    return column;
+	}
+	
+	/**
+	 * Adding zeros to the front of an array
+	 * @param array int array
+	 * @param zeros number of zeros to add
+	 * @return updated int array
+	 */
+	
+	public static int[] addZerosF(int[] array, int zeros) {
+		int[] arr= new int[zeros];
+		for(int i=0;i<zeros;i++) {
+			arr[i]=0;
+		}
+		for(int i=0;i<array.length;i++) {
+			arr=addElement(arr, array[i]);
+		}
+		return arr;
+	}
+	
+	/**
+	 * Summing valences of all the atoms
+	 * @param ac atomcontainer
+	 * @return int summation of all valences.
+	 */
+	
+	public static int totalValences(IAtomContainer ac) {
+		int val=0;
+		for(IAtom atom: acontainer.atoms()) {
+			val+=capacities.get(atom.getAtomicNumber())+1;
+		}
+		return val;
+	}
+	
+	/**
+	 * Valence check for an adjacecny matrix
+	 * @param mat int matrix
+	 * @param valence valence of an atom
+	 * @return boolean 
+	 */
+	
+	public static boolean valenceCheck(int[][] mat){
+		boolean check=true;
+		for(int i=0;i<mat.length;i++) {
+			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
+				check=false;
+				break;
+			}
+		}
+		return check;	
+	}
+	
+	/**
+	 * Maximum multiplicities between atom pairs in an atomcontainer. 
+	 * @param ac atomcontainer
+	 * @return int[][] maximum multiplicity matrix
+	 */
+	
+	public static int[][] maxMultiplicity(IAtomContainer ac) {
+		int atoms= ac.getAtomCount();
+		int[][] mult= new int[atoms][atoms];
+		for(int i=0;i<atoms;i++) {
+			for(int j=i+1;j<atoms;j++) {
+				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
+					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()));
+				}else {
+					mult[i][j]=capacities.get(ac.getAtom(i).getAtomicNumber())-1;
+				}
+			}
+		}
+		return mult;
+	}
+	
+	/**
+	 * Setting general parameters of the class.
+	 * @param formula Molecular formula.
+	 * @return
+	 */
 	
 	public static int[] setValues(IMolecularFormula formula) {
 		int size= formula.getIsotopeCount();
@@ -92,68 +233,61 @@ public class Generator {
 		
 		Generator.capacity=capacity;
 		Generator.valences=valences;
-		Generator.totalCapacity=sum(capacity);
 		Generator.totalValences=totalValences(acontainer);
-		Generator.totalAtom=totalAtom;
-		Generator.maxMultiplicity= maxMultiplicity(valences);
 		return capacity;
 	}
 	
-	public static int totalValences(IAtomContainer ac) {
-		int val=0;
-		for(IAtom atom: acontainer.atoms()) {
-			val+=capacities.get(atom.getAtomicNumber())+1;
+	/**
+	 * Integer partitioning
+	 * @param index row number in the matrix
+	 * @param n integer to distribute
+	 * @param fill sum of filled entries
+	 * @param d 
+	 * @param depth
+	 * @return
+	 */
+	
+	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
+		if(d==depth) {
+			List<int[]> array= new ArrayList<int[]>();
+			int[] take=new int[0];
+			array.add(take);
+			return array;
 		}
-		return val;
+		return buildArray(index, n,fill,d,depth);	
 	}
 	
-	public static int[][] maxMultiplicity(IAtomContainer ac) {
-		int atoms= ac.getAtomCount();
-		int[][] mult= new int[atoms][atoms];
-		for(int i=0;i<atoms;i++) {
-			for(int j=i+1;j<atoms;j++) {
-				if(ac.getAtom(i).getSymbol()!=ac.getAtom(j).getSymbol()) {
-					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()));
+	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
+		List<int[]> array= new ArrayList<int[]>();
+		for(int i=Math.min(valences[depth]-fill,maxMultiplicity[index][depth]);i>=0;i--) {
+			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
+				if(item.length==0) {
+					item=addElement(item,i);
+					if(sum(item)<=valences[item.length-1]) {
+						array.add(item);
+					}
 				}else {
-					mult[i][j]=Math.min(capacities.get(ac.getAtom(i).getAtomicNumber()), capacities.get(ac.getAtom(j).getAtomicNumber()))-1;
+					if(item[item.length-1]<=i) {
+						item=addElement(item,i);
+						if(sum(item)<=valences[item.length-1]) {
+							array.add(item);
+						}
+					}
 				}
-				count++;
 			}
 		}
-		return mult;
+		return array;
 	}
 	
-	public static int factorial(int i){
-		if (i==0){
-			return 1;
-		}
-		return i * factorial(i - 1);
-	}
-	
-	public static int combination(int m, int n) {
-		return factorial(m) / (factorial(n) * factorial(m - n));
-	}
-	
-	public static int sum(int[] array) {
-		int sum=0;
-		for(int i=0;i<array.length;i++) {
-			sum=sum+array[i];
-		}
-		return sum;
-	}
-	
-	public static int sum(int[][] array) {
-		int sum=0;
-		for(int i=0;i<array.length;i++) {
-			sum=sum+sum(array[i]);
-		}
-		return sum;
-	}
-	
-	public static int[][] copy(int[][] matrix){
-		int[][] copy = Arrays.stream(matrix).map(r -> r.clone()).toArray(int[][]::new);
-		return copy;
-	}
+	/**
+	 * Generating adjacency matrices of an atomcontainer
+	 * @param ac atomcontainer
+	 * @param index row index of adj. matrix
+	 * @param bonds number of bonds to distribute. 
+	 * @param matrices list of filled matrices.
+	 * @param output the list of fully filled adj. matrices
+	 * @return
+	 */
 	
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
 		int atomSize= ac.getAtomCount();
@@ -183,112 +317,6 @@ public class Generator {
 			}
 		}
 		return matrices;
-	}
-	/**
-	 * To initialise the inputs and run the functions while recording the duration time.
-	 * @throws CDKException 
-	 */
-	
-	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
-		long startTime = System.nanoTime(); //Recording the duration time.
-		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
-		Generator.isotopes=formula.getIsotopeCount()-1;
-		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
-		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
-		Generator.size=ac.getAtomCount();
-		Generator.acontainer=ac;
-		setValues(formula);
-		Generator.totalHydrogen=hydrogen;		
-		if(verbose) {
-			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
-		}
-		List<int[]> result= new ArrayList<int[]>();
-		int count=0;
-		List<int[]> iarrays= new ArrayList<int[]>();
-		int[] array = new int[0];
-		count=iarrays.size();
-		result= iarrays;
-		if(verbose) {
-			System.out.println("Number of distributions: "+count);
-		}
-		long endTime = System.nanoTime()- startTime;
-        double seconds = (double) endTime / 1000000000.0;
-		DecimalFormat d = new DecimalFormat(".###");
-		if(verbose) {
-			System.out.println("Duration:"+" "+d.format(seconds));
-		}
-	}
-	
-	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
-		if(d==depth) {
-			List<int[]> array= new ArrayList<int[]>();
-			int[] take=new int[0];
-			array.add(take);
-			return array;
-		}
-		return buildArray(index, n,fill,d,depth);	
-	}
-	
-
-	public static int[] getColumn(int[][] array, int index){
-	    int size=array[0].length;
-		int[] column = new int[size]; 
-	    for(int i=0; i<size; i++){
-	       column[i] = array[i][index];
-	    }
-	    return column;
-	}
-	
-	public static boolean valenceCheck(int[][] mat){
-		boolean check=true;
-		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
-				check=false;
-				break;
-			}
-		}
-		return check;	
-	}
-	
-	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
-		List<int[]> array= new ArrayList<int[]>();
-		for(int i=Math.min(valences[depth]-fill,maxMultiplicity[index][depth]);i>=0;i--) {
-			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
-				if(item.length==0) {
-					item=addElement(item,i);
-					if(sum(item)<=valences[item.length-1]) {
-						array.add(item);
-					}
-				}else {
-					if(item[item.length-1]<=i) {
-						item=addElement(item,i);
-						if(sum(item)<=valences[item.length-1]) {
-							array.add(item);
-						}
-					}
-				}
-			}
-		}
-		return array;
-	}
-	
-	/**
-	 * Adding zeros to the front of an array
-	 * @param array int array
-	 * @param zeros number of zeros to add
-	 * @return updated int array
-	 */
-	
-	public static int[] addZerosF(int[] array, int zeros) {
-		int[] arr= new int[zeros];
-		for(int i=0;i<zeros;i++) {
-			arr[i]=0;
-		}
-		for(int i=0;i<array.length;i++) {
-			arr=addElement(arr, array[i]);
-		}
-		return arr;
 	}
 	
 	/**
@@ -340,6 +368,41 @@ public class Generator {
 			ac.addBond(i, j, Order.DOUBLE);
 		}else if(order==3) {
 			ac.addBond(i, j, Order.TRIPLE);
+		}
+	}
+	
+	/**
+	 * To initialise the inputs and run the functions while recording the duration time.
+	 * @throws CDKException 
+	 */
+	
+	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
+		long startTime = System.nanoTime(); //Recording the duration time.
+		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
+		String formulaString =MolecularFormulaManipulator.getString(formula);
+		Generator.isotopes=formula.getIsotopeCount()-1;
+		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
+		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
+		Generator.atomCount=ac.getAtomCount();
+		Generator.acontainer=ac;
+		setValues(formula);		
+		if(verbose) {
+			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
+		}
+		List<int[]> result= new ArrayList<int[]>();
+		int count=0;
+		List<int[]> iarrays= new ArrayList<int[]>();
+		int[] array = new int[0];
+		count=iarrays.size();
+		result= iarrays;
+		if(verbose) {
+			System.out.println("Number of distributions: "+count);
+		}
+		long endTime = System.nanoTime()- startTime;
+        double seconds = (double) endTime / 1000000000.0;
+		DecimalFormat d = new DecimalFormat(".###");
+		if(verbose) {
+			System.out.println("Duration:"+" "+d.format(seconds));
 		}
 	}
 	
