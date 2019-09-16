@@ -41,6 +41,7 @@ public class Generator {
 	public static int atomCount;
 	public static int totalCapacity;
 	public static int totalValences;
+	public static int hydrogens;
 	public static int isotopes;
 	public static int[] capacity;
 	public static int[] valences;
@@ -385,6 +386,7 @@ public class Generator {
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
 		Generator.atomCount=ac.getAtomCount();
 		Generator.acontainer=ac;
+		Generator.hydrogens=hydrogen;
 		setValues(formula);	
 		Generator.maxMultiplicity=maxMultiplicity(ac);
 		if(verbose) {
@@ -401,9 +403,9 @@ public class Generator {
 				matrices.add(mat);
 			}
 		}
-		
+
 		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,6,matrices,output);
+		generate(ac,1,(totalValences-hydrogens)/2,matrices,output);
 		for(int[][] mat: output) {
 			System.out.println(Arrays.deepToString(mat));
 		}
