@@ -140,6 +140,20 @@ public class SimpleGraphGenerator {
 	    return column;
 	}
 	
+	
+	/**
+	 * Adding a given number of zeros to the end of a given int array.
+	 * @param array int array
+	 * @param zeros number of zeros
+	 * @return int array
+	 */
+	public static int[] addZeros(int[] array, int zeros) {
+		for(int i=0;i<zeros;i++) {
+			array=addElement(array,0);
+		}
+		return array;
+	}
+	
 	/**
 	 * Adding zeros to the front of an array
 	 * @param array int array
@@ -226,33 +240,37 @@ public class SimpleGraphGenerator {
 	 * @return
 	 */
 	
-	public static List<int[]> partition(int index, int n,int fill, int d,int depth) {
+	public static List<int[]> partition(int index,int n, int d,int depth) {
 		if(d==depth) {
 			List<int[]> array= new ArrayList<int[]>();
 			int[] take=new int[0];
 			array.add(take);
 			return array;
 		}
-		return buildArray(index, n,fill,d,depth);	
+		return buildArray(index,n,d,depth);	
 	}
 	
-	public static List<int[]> buildArray(int index, int n,int fill,int d, int depth){
-		List<int[]> array= new ArrayList<int[]>();
-		for(int i=0;i<2;i++) {
-			for(int[] item: partition(index, n-i,fill,d,depth+1)) {
-				if(item.length==0) {
+	public static List<int[]> buildArray(int index, int n,int d, int depth){
+		/**List<int[]> array= new ArrayList<int[]>();
+		for(int i=0;i<n;i++) {
+			for(int[] item: partition(index, n-i,d,depth+1)) {
+				if(i==0) {
 					item=addElement(item,i);
-					if(sum(item)<=valences[item.length-1]) {
-						array.add(item);
-					}
+					array.add(item);
 				}else {
-					if(item[item.length-1]<=i) {
-						item=addElement(item,i);
-						if(sum(item)<=valences[item.length-1]) {
-							array.add(item);
-						}
+					for(int j=0;j<i;j++) {
+						item=addElement(item,1);
 					}
+					array.add(item);
 				}
+			}
+		}**/
+		List<int[]> array= new ArrayList<int[]>();
+		IntStream range = IntStream.rangeClosed(0,n);
+		for(int i:range.toArray()) {
+			for(int[] item: partition(index,n-i,d,depth+1)) {
+				item=addElement(item,i);
+			    array.add(item);
 			}
 		}
 		return array;
@@ -269,8 +287,7 @@ public class SimpleGraphGenerator {
 	 */
 	
 	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
-		int atomSize= ac.getAtomCount();
-		if(index==atomSize-1) {
+		if(index==atomCount-1) {
 			for(int[][] mat:matrices) {
 				if(valenceCheck(mat)) {
 					System.out.println(Arrays.deepToString(mat));
@@ -279,18 +296,19 @@ public class SimpleGraphGenerator {
 			}
 		}else {
 			for(int[][] mat:matrices) {
-				int de=atomSize-(index+1);
+				int de=atomCount-(index+1);
 				if(de!=0) {
-					for(int[] array:partition(index,atomCount-index,sum(mat[index]),de,0)){
-						if(sum(array)!=0 && sum(array)<=valences[index]) {
+					for(int[] array:partition(index,de,de,0)){
+						System.out.println(Arrays.toString(array));
+						//if(sum(array)!=0 && sum(array)<=valences[index]) {
 							List<int[][]> list= new ArrayList<int[][]>();
-							int zeros=atomSize-array.length;
+							int zeros=atomCount-array.length;
 							array=addZerosF(array,zeros);
 							int[][] copy=copy(mat);
 							copy[index]=array;
 							list.add(copy);
-							generate(ac,index+1,bonds-sum(copy),list,output);
-						}
+							generate(ac,index+1,de,list,output);
+						//}
 					}
 				}
 			}
@@ -340,7 +358,7 @@ public class SimpleGraphGenerator {
 	public static void run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
 		long startTime = System.nanoTime(); //Recording the duration time.
 		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
-		String formulaString =MolecularFormulaManipulator.getString(formula);
+		String formulaString = MolecularFormulaManipulator.getString(formula);
 		SimpleGraphGenerator.isotopes=formula.getIsotopeCount()-1;
 		formula.removeIsotope(builder.newInstance(IIsotope.class, "H"));
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
@@ -352,11 +370,13 @@ public class SimpleGraphGenerator {
 			System.out.println("For molecular formula "+ formulaString +", generating structures...");
 		}
 		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int[] array:partition(0,atomCount-1,0,atomCount-1,0)){
-			if(sum(array)!=0 && sum(array)<=valences[0]) { 
-				//TODO: first line can be zero 
+		System.out.println(atomCount);
+		for(int[] array:partition(0,atomCount-1,atomCount-1,0)){
+			if(sum(array)!=0) { 
 				int zeros=atomCount-array.length;
 				array=addZerosF(array,zeros);
+				//TODO: first line can be zero 
+				System.out.println(Arrays.toString(array));
 				int[][] mat= new int[atomCount][atomCount];
 				mat[0]=array;
 				matrices.add(mat);
@@ -386,8 +406,8 @@ public class SimpleGraphGenerator {
 		try {
 			CommandLine cmd = parser.parse(options, arguments);
 			String formula = cmd.getOptionValue("formula");
-			Generator.formula=MolecularFormulaManipulator.getMolecularFormula(formula, builder);
-			if (cmd.hasOption("verbose")) Generator.verbose = true;
+			SimpleGraphGenerator.formula=MolecularFormulaManipulator.getMolecularFormula(formula, builder);
+			if (cmd.hasOption("verbose")) SimpleGraphGenerator.verbose = true;
 		
 		} catch (ParseException e) {
 			HelpFormatter formatter = new HelpFormatter();
@@ -419,13 +439,13 @@ public class SimpleGraphGenerator {
 	}
 	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
-		Generator gen= new Generator();
+		SimpleGraphGenerator gen= new SimpleGraphGenerator();
 		String[] arguments1= {"-f","C6H6","-v"};
 		try {
 			gen.parseArguments(arguments1);
-			Generator.run(Generator.formula);
+			SimpleGraphGenerator.run(SimpleGraphGenerator.formula);
 		} catch (Exception e) {
-			if (Generator.verbose) e.getCause(); 
+			if (SimpleGraphGenerator.verbose) e.getCause(); 
 		}
 	}
 }

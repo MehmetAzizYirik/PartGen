@@ -160,6 +160,19 @@ public class Generator {
 	}
 	
 	/**
+	 * Adding a given number of zeros to the end of a given int array.
+	 * @param array int array
+	 * @param zeros number of zeros
+	 * @return int array
+	 */
+	public static int[] addZeros(int[] array, int zeros) {
+		for(int i=0;i<zeros;i++) {
+			array=addElement(array,0);
+		}
+		return array;
+	}
+	
+	/**
 	 * Summing valences of all the atoms
 	 * @param ac atomcontainer
 	 * @return int summation of all valences.
