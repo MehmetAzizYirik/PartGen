@@ -210,25 +210,21 @@ public class SimpleGraphGenerator {
 	 * @return
 	 */
 	
-	public static int[] setValues(IMolecularFormula formula) {
-		int size= formula.getIsotopeCount();
+	public static int[] setValues() {
+		int size= acontainer.getAtomCount();
 		int[] capacity = new int[size];
 		int[] valences = new int[size];
 		int[] totalAtom = new int[size];
 		int i=0;
-		for(IIsotope top:formula.isotopes()) {
-			Integer atomNo=top.getAtomicNumber();
-			totalAtom[i]=formula.getIsotopeCount(top);
-			valences[i]=capacities.get(atomNo)+1;
-			capacity[i]=capacities.get(atomNo)*formula.getIsotopeCount(top);
+		for(IAtom atom: acontainer.atoms()) {
+			valences[i]=capacities.get(atom.getAtomicNumber())+1;
 			i++;
 		}
-		
-		SimpleGraphGenerator.capacity=capacity;
 		SimpleGraphGenerator.valences=valences;
 		SimpleGraphGenerator.totalValences=totalValences(acontainer);
 		return capacity;
 	}
+	
 	
 	/**
 	 * Integer partitioning
@@ -266,7 +262,7 @@ public class SimpleGraphGenerator {
 			}
 		}**/
 		List<int[]> array= new ArrayList<int[]>();
-		IntStream range = IntStream.rangeClosed(0,n);
+		IntStream range = IntStream.rangeClosed(0,1);
 		for(int i:range.toArray()) {
 			for(int[] item: partition(index,n-i,d,depth+1)) {
 				item=addElement(item,i);
@@ -286,30 +282,25 @@ public class SimpleGraphGenerator {
 	 * @return
 	 */
 	
-	public static List<int[][]> generate(IAtomContainer ac,int index,int bonds,List<int[][]> matrices,List<int[][]> output) {
+	public static List<int[][]> generate(IAtomContainer ac,int index,List<int[][]> matrices,List<int[][]> output) {
 		if(index==atomCount-1) {
 			for(int[][] mat:matrices) {
-				if(valenceCheck(mat)) {
-					System.out.println(Arrays.deepToString(mat));
+				if(valenceCheck(mat) && sum(mat)>=atomCount-1) { //Minimal number of bonds is the number of atoms minus 1.
+					//System.out.println(Arrays.deepToString(mat));
 					output.add(mat);
 				}
 			}
 		}else {
 			for(int[][] mat:matrices) {
-				int de=atomCount-(index+1);
-				if(de!=0) {
-					for(int[] array:partition(index,de,de,0)){
-						System.out.println(Arrays.toString(array));
-						//if(sum(array)!=0 && sum(array)<=valences[index]) {
-							List<int[][]> list= new ArrayList<int[][]>();
-							int zeros=atomCount-array.length;
-							array=addZerosF(array,zeros);
-							int[][] copy=copy(mat);
-							copy[index]=array;
-							list.add(copy);
-							generate(ac,index+1,de,list,output);
-						//}
-					}
+				for(int[] array:partition(index,valences[index],(atomCount-(index+1)),0)){
+					//System.out.println(Arrays.toString(array));
+					List<int[][]> list= new ArrayList<int[][]>();
+					int zeros=atomCount-array.length;
+					array=addZerosF(array,zeros);
+					int[][] copy=copy(mat);
+					copy[index]=array;
+					list.add(copy);
+					generate(ac,index+1,list,output);
 				}
 			}
 		}
@@ -365,18 +356,16 @@ public class SimpleGraphGenerator {
 		SimpleGraphGenerator.atomCount=ac.getAtomCount();
 		SimpleGraphGenerator.acontainer=ac;
 		SimpleGraphGenerator.hydrogens=hydrogen;
-		setValues(formula);	
+		setValues();
 		if(verbose) {
 			System.out.println("For molecular formula "+ formulaString +", generating structures...");
 		}
 		List<int[][]> matrices= new ArrayList<int[][]>();
-		System.out.println(atomCount);
 		for(int[] array:partition(0,atomCount-1,atomCount-1,0)){
 			if(sum(array)!=0) { 
 				int zeros=atomCount-array.length;
 				array=addZerosF(array,zeros);
 				//TODO: first line can be zero 
-				System.out.println(Arrays.toString(array));
 				int[][] mat= new int[atomCount][atomCount];
 				mat[0]=array;
 				matrices.add(mat);
@@ -384,7 +373,7 @@ public class SimpleGraphGenerator {
 		}
 
 		List<int[][]> output= new ArrayList<int[][]>();
-		generate(ac,1,(totalValences-hydrogens)/2,matrices,output);
+		generate(ac,1,matrices,output);
 		for(int[][] mat: output) {
 			System.out.println(Arrays.deepToString(mat));
 		}
@@ -440,7 +429,7 @@ public class SimpleGraphGenerator {
 	
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
 		SimpleGraphGenerator gen= new SimpleGraphGenerator();
-		String[] arguments1= {"-f","C6H6","-v"};
+		String[] arguments1= {"-f","C3H3","-v"};
 		try {
 			gen.parseArguments(arguments1);
 			SimpleGraphGenerator.run(SimpleGraphGenerator.formula);
