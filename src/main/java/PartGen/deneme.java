@@ -6,9 +6,11 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.apache.commons.cli.CommandLine;
@@ -38,7 +40,9 @@ public class deneme {
 	public static boolean verbose = false;
 	public static int size;
 	public static int isotopes;
+	public static int totalHydrogen;
 	public static int[] capacity;
+	public static int[] valence;
 	public static int[] valences;
 	public static int[] totalAtom; // Total number of atoms.
 	public static int hydrogens2distribute;
@@ -83,8 +87,19 @@ public class deneme {
 		}
 		deneme.capacity=capacity;
 		deneme.valences=valences;
+		deneme.valence=valence(acontainer);
 		deneme.totalAtom=totalAtom;
 		return capacity;
+	}
+	
+	public static int[] valence(IAtomContainer ac) {
+		int[] valence = new int[size];
+		int i=0;
+		for(IAtom atom: ac.atoms()) {
+			valence[i]=capacities.get(atom.getAtomicNumber())+1;
+			i++;
+		}
+		return valence;
 	}
 	
 	public static int sum(int[] array) {
@@ -174,12 +189,41 @@ public class deneme {
 	    }
 	    return comb;
 	}
+	
+	public static int[] isotopes(int index) {
+		int[] isotope= new int[isotopes];
+		String symbol=acontainer.getAtom(index+1).getSymbol();
+		int j=0;
+		isotope[j]++;
+		for(int i=index+2;i<size;i++) {
+			String symbol2=acontainer.getAtom(i).getSymbol();
+			if(!symbol2.equals(symbol)) {
+				j++;
+				isotope[j]++;
+			}else {
+				isotope[j]++;
+			}
+		}
+		return isotope;
+	}
+	
+	public static int countIsotopes(int index) {
+		int[] iso = isotopes(index);
+		int count=0;
+		for(int i=0;i<iso.length;i++) {
+			if(iso[i]!=0) {
+				count++;
+			}
+		}
+		return count;
+	}
+	
 	/**
 	 * To initialise the inputs and run the functions while recording the duration time.
 	 * @throws CDKException 
 	 */
 	
-	public static List<IAtomContainer> run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
+	public static List<int[][]> run(IMolecularFormula formula) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException, CDKException {
 		long startTime = System.nanoTime(); //Recording the duration time.
 		int hydrogen=formula.getIsotopeCount(builder.newInstance(IIsotope.class, "H"));
 		String formulaString =MolecularFormulaManipulator.getString(formula);
@@ -188,34 +232,40 @@ public class deneme {
 		IAtomContainer ac=MolecularFormulaManipulator.getAtomContainer(formula);
 		deneme.size=ac.getAtomCount();
 		deneme.acontainer=ac;
+		deneme.totalHydrogen=hydrogen;
 		setValues(formula);
 		if(verbose) {
 			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
 		}
-		List<int[]> result= new ArrayList<int[]>();
+		List<int[][]> result= new ArrayList<int[][]>();
 		int count=0;
 		if(isotopes==1) {
-			List<int[]> iarrays= new ArrayList<int[]>();
-			int[] array = new int[0];
-			distribute(iarrays,array,valences[0],totalAtom[0]);
-			count=iarrays.size();
-			result= iarrays;
-		}else {
-			List<int[]> distributions= new ArrayList<int[]>();
-			for(int[] dene:partition(totalHydrogen,isotopes,0)){
-				LinkedList<List <int[]>> lists = new LinkedList<List <int[]>>();
-				for(int i=0;i<dene.length;i++) {
-					deneme.hydrogens2distribute=dene[i];
-					List<int[]> iarrays= new ArrayList<int[]>();
-					int[] array = new int[0];
-					distribute(iarrays,dene[i],array,valences[i],totalAtom[i]);
-					lists.add(iarrays);
-				}	
-				List<int[]> combined=combineArrays(lists);
-				count+=combined.size();
-				distributions.addAll(combined);
+			List<int[][]> matrices= new ArrayList<int[][]>();
+			List<int[][]> output= new ArrayList<int[][]>();
+			for(int[] array:distribute1s(size-1,size-1)) {
+				int zeros=size-array.length;
+				array=addZerosF(array,zeros);
+				int[][] mat= new int[size][size];
+				mat[0]=array;
+				matrices.add(mat);
 			}
-			result=distributions;
+			simpleGen(1,matrices,output);
+			count=output.size();
+			result= output;
+		}else {
+			List<int[][]> matrices= new ArrayList<int[][]>();
+			List<int[][]> output= new ArrayList<int[][]>();
+			List<int[]> firstRows=rowsGen(0);
+			for(int[] arr:firstRows){
+				int zeros=size-arr.length;
+				arr=addZerosF(arr,zeros);
+				int[][] mat= new int[size][size];
+				mat[0]=arr;
+				matrices.add(mat);
+			}	
+			complexGen(1,matrices,output);
+			count=output.size();
+			result=output;
 		}
 		if(verbose) {
 			System.out.println("Number of distributions: "+count);
@@ -227,7 +277,7 @@ public class deneme {
 			System.out.println("Duration:"+" "+d.format(seconds));
 		}
 
-		return generateAtomContainers(result);
+		return result;
 	}
 	
 	/**
@@ -252,13 +302,13 @@ public class deneme {
 			for(int[] item: partition(total,n-i,d,depth+1)) {
 				if(i<=capacity[item.length]) {
 					item=addElement(item,i);
-					if(item.length==d) {
-						if(sum(item)==total) {
-							array.add(item);
-						}
-					}else {
-						array.add(item);
-					}
+			        if(item.length==d) {
+			        	if(sum(item)==total) {
+			        		array.add(item);
+			        	}
+			        }else {
+			        	array.add(item);
+			        }
 				}
 			}
 		}
@@ -269,23 +319,13 @@ public class deneme {
 		if(index==size-1) {
 			for(int[][] mat:matrices) {
 				if(valenceCheck(mat) && sum(mat)>=size-1) { //Minimal number of bonds is the number of atoms minus 1.
-					//System.out.println(Arrays.deepToString(mat));
 					output.add(mat);
 				}
 			}
 		}else {
 			for(int[][] mat:matrices) {
-				List<int[]> iarrays= new ArrayList<int[]>();
 				List<int[][]> list= new ArrayList<int[][]>();
-				List<int[]> rows= new ArrayList<int[]>();
-				for(int[] arr:partition(size-(index+1),size-(index+1),size-(index+1),0)){
-					LinkedList<List <int[]>> lists = new LinkedList<List <int[]>>();
-					for(int i=0;i<arr.length;i++) {
-						lists.add(distribute1s(arr[i],capacity[i]));
-					}
-					List<int[]> combined=combineArrays(lists);
-					rows.addAll(combined);
-				}
+				List<int[]> rows= rowsGen(index);
 				for(int[] arr:rows) {
 					int zeros=size-arr.length;
 					arr=addZerosF(arr,zeros);
@@ -312,6 +352,7 @@ public class deneme {
 				for(int[] arr: distribute1s(size-(index+1),size-(index+1))) {
 					int zeros=size-arr.length;
 					arr=addZerosF(arr,zeros);
+					System.out.println("zeros"+" "+Arrays.toString(arr));
 					int[][] copy=copy(mat);
 					copy[index]=arr;
 					list.add(copy);
@@ -320,6 +361,29 @@ public class deneme {
 			}
 		}
 		return matrices;
+	}
+	
+	public static List<int[]> rowsGen(int index) throws CloneNotSupportedException{
+		List<int[]> rows= new ArrayList<int[]>();
+		if(countIsotopes(index)==1) {
+			for(int[] array:distribute1s(index+1,index+1)) {
+				int zeros=size-array.length;
+				array=addZerosF(array,zeros);
+				rows.add(array);
+			}
+		}else {
+			int[] iso= isotopes(index);
+			for(int[] arr:partition(size-(index+1),size-(index+1),countIsotopes(index),0)){
+				LinkedList<List <int[]>> lists = new LinkedList<List <int[]>>();
+				for(int i=0;i<arr.length;i++) {
+					List<int[]> list=distribute1s(arr[i],iso[i]);
+					lists.add(list);
+				}
+				List<int[]> combined=combineArrays(lists);
+				rows.addAll(combined);
+			}
+		}
+		return rows;
 	}
 	
 	/**
@@ -332,7 +396,7 @@ public class deneme {
 	public static boolean valenceCheck(int[][] mat){
 		boolean check=true;
 		for(int i=0;i<mat.length;i++) {
-			if(!(sum(mat[i])<=valences[i] && sum(getColumn(mat,i))<=valences[i])) {
+			if(!(sum(mat[i])<=valence[i] && sum(getColumn(mat,i))<=valence[i])) {
 				check=false;
 				break;
 			}
@@ -425,19 +489,28 @@ public class deneme {
 	
 	public static List<int[]> distribute1s(int dis, int space) throws CloneNotSupportedException {
 		List<int[]> arrays= new ArrayList<int[]>();
+		int[] zeros= new int[space];
+		arrays.add(zeros);
 		for(int i = dis; i > 0; i--) {
 			int[] arr= new int[space];
-			arrays.add(add1s(arr,i));
+			for(int j=0;j<i;j++) {
+				arr[j]=1;
+			}
+			arrays.add(arr);
 		}
 		return arrays;
 	}
 	
 	public static int[] add1s(int[] array, int count) {
 		int size= array.length;
-		for(int i=size;i<count+size;i++) {
-			array[i]=1;
+		int[] output= new int[size+count];
+		for(int i=0;i<size;i++) {
+			output[i]=array[i];
 		}
-		return array;
+		for(int i=size;i<count+size;i++) {
+			output[i]=1;
+		}
+		return output;
 	}
 	
 	/**
@@ -500,15 +573,33 @@ public class deneme {
 		options.addOption(verbose);	
 		return options;
 	}
-	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException {
+	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
+		/**int[] cp= new int[3];
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		List<int[][]> output= new ArrayList<int[][]>();
+		for(int[] arr:partition(8,8,3,0)){
+			System.out.println(Arrays.toString(arr));
+		}
+		for(int[] array:distribute1s(3,3)) {
+			int zeros=4-array.length;
+			array=addZerosF(array,zeros);
+			//TODO: first line can be zero 
+			int[][] mat= new int[4][4];
+			mat[0]=array;
+			matrices.add(mat);
+		}
+		simpleGen(1,matrices,output);
+		for(int[][] mat: output) {
+			System.out.println(Arrays.deepToString(mat));
+		}**/
 		
-		/**deneme distribution= new deneme();
-		//String[] arguments1= {"-f","C7H8ClNO2S","-v"};
+		deneme distribution= new deneme();
+		String[] arguments1= {"-f","C6H6O","-v"};
 		try {
-			distribution.parseArguments(arguments);
+			distribution.parseArguments(arguments1);
 			deneme.run(deneme.formula);
 		} catch (Exception e) {
 			if (deneme.verbose) e.getCause(); 
-		}**/
+		}
 	}
 }
