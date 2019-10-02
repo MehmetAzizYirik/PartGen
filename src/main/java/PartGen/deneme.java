@@ -211,7 +211,12 @@ public class deneme {
 		return isotope;
 	}
 	
-	public static int newIsotope() {
+	/**
+	 * To find the starting index of the last isotope in an atom container.
+	 * @return index
+	 */
+	
+	public static int lastIsotopeIndex() {
 		String symbol=acontainer.getAtom(0).getSymbol();
 		int index=0;
 		for(int i=1;i<size;i++) {
@@ -262,13 +267,14 @@ public class deneme {
 		Set<int[][]> matrices = new HashSet<int[][]>();
 		Set<int[][]> output = new HashSet<int[][]>();
 		Set<int[][]> output2 = new HashSet<int[][]>();
-		int limit= newIsotope();
+		//without cheking anything just create first row then fill all the others with max bonds.
+		/**int limit= newIsotope();
 		int remaining=remaining(limit);
 		int say=2;
 		for(int[] r:rowsGen2(0)) {
+			System.out.println(Arrays.toString(r));
 			if(sum(r)!=0) {
 				if(sum(r)==say) {
-					System.out.println(Arrays.toString(r)+" "+say);
 					int zeros=size-r.length;
 					r=addZerosF(r,zeros);
 					int[][] mat= new int[size][size];
@@ -280,32 +286,24 @@ public class deneme {
 					say--;
 				}
 			}
-		}
-
-		List<int[]> firstRows = rowsGen(0);
-		for(int[] arr:firstRows){
-			if(sum(arr)!=0) {
-				int zeros=size-arr.length;
-				arr=addZerosF(arr,zeros);
-				int[][] mat= new int[size][size];
-				mat[0]=arr;
-				matrices.add(mat);
-			}
-		}
-		
-		multiGen(1,limit,matrices,output);
+		}**/
+		int limit= lastIsotopeIndex(); 
+		multiGen(0,limit,matrices,output);
 		for(int[][] mat: output) {
-			output2.addAll(simpleBondAdd(ac,mat,limit));
+			Arrays.deepToString(mat);
+			if(limit<size-1) {
+				output2.addAll(simpleBondAdd(ac,mat,limit));
+			}
+			
 		}
 		//count=output.size();
 		//result=output;
 		int count2=0;
-		for(int[][] mat: output2) {
-			System.out.println(count2+" "+Arrays.deepToString(mat));
-			count2++;
-		}
 		int count=0;
-		for(IAtomContainer acon: generateAtomContainers(output2)) {
+		for(int[][] mat:output) {
+			System.out.println(Arrays.deepToString(mat));
+		}
+		for(IAtomContainer acon: generateAtomContainers(output)) {
 			depict(acon,"C:\\Users\\mehme\\Desktop\\output\\"+count+".png");
 			count++;
 		}
@@ -443,27 +441,69 @@ public class deneme {
 		return matrices;
 	}
 	
+	/**
+	 * To set entries of a matrix. Both the row and their transpose columns. 
+	 * @param mat int matrix
+	 * @param index row index
+	 * @param array entry values
+	 * @return int matrix with the new values
+	 */
+	
+	public static int[][] setEntries(int[][] mat,int index, int[] array) {
+		for(int i=0;i<array.length;i++) {
+			mat[((i+index)+1)][index]=array[i];
+			mat[index][((i+index)+1)]=array[i];
+		}
+		return mat;
+	}
+	
+	public static boolean MatNotIn(Set<int[][]> mats, int[][] mat) {
+		boolean check=true;
+		for(int[][] m:mats) {
+			if(Arrays.deepEquals(m, mat)) {
+				check=false;
+				break;
+			}
+		}
+		return check;
+	}
 	public static Set<int[][]> multiGen(int index,int limit,Set<int[][]> matrices,Set<int[][]> output) throws CloneNotSupportedException {
 		if(index==limit) {
 			for(int[][] mat:matrices) {
-				if(valenceCheck(mat)) { //Minimal number of bonds is the number of atoms minus 1.
-					output.add(mat);
+				if(valenceCheck(mat) && sum(mat)/2>=size-1) { //Minimal number of bonds is the number of atoms minus 1.
+					if(MatNotIn(output,mat)) {
+						output.add(mat);
+					}
 				}
 			}
 		}else {
-			for(int[][] mat:matrices) {
-				Set<int[][]> list= new HashSet<int[][]>();
-				List<int[]> rows= rowsGen2(index);
-				for(int[] arr:rows) {
-					int[][] copy=copy(mat);
-					copy[index]=arr;
-					list.add(copy);
-					multiGen(index+1,limit,list,output);
+			if(index==0) {
+				int[][] initial= new int[size][size];
+				List<int[]> firstRows = rowsGen(0,initial); // to remove the duplicates I should add count down.
+				for(int[] arr:firstRows){
+					if(sum(arr)!=0) {
+						int[][] mat= new int[size][size];
+						setEntries(mat,index,arr);
+						matrices.add(mat);
+						multiGen((index+1),limit,matrices,output);
+					}
+				}
+			}else {
+				for(int[][] mat:matrices) {
+					Set<int[][]> list= new HashSet<int[][]>();
+					List<int[]> rows= rowsGen(index,mat);
+					for(int[] arr:rows) {
+						int[][] copy=copy(mat);
+						setEntries(copy,index,arr);
+						list.add(copy);
+						multiGen((index+1),limit,list,output);
+					}
 				}
 			}
 		}
 		return matrices;
 	}
+	
 	public static int factorial(int i){
 		if (i==0){
 			return 1;
@@ -491,24 +531,35 @@ public class deneme {
 		return matrices;
 	}
 	
-	public static List<int[][]> simpleBondAdd(IAtomContainer ac, int[][] mat, int limit) throws CloneNotSupportedException {
+	/**public static List<int[][]> simpleBondAdd(IAtomContainer ac, int[][] mat, int limit) throws CloneNotSupportedException {
 		int size= ac.getAtomCount();
-		int remaining=remaining(limit);
+		int remaining=remaining(limit,mat);
+		System.out.println("rem"+" "+remaining);
 		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int i= remaining-1;i>=(size-1-sum(mat));i--) {
+		for(int i= remaining-1;i>=(size-1);i--) { //(size-1-sum(mat))
 			int[][] mat2= distribute1s(i,mat,limit);
+			System.out.println(Arrays.deepToString(mat2)+" "+"dist");
 			if(zeroColumnCheck(mat2)) {
-				matrices.add(distribute1s(i,mat,limit));
+				if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
+					matrices.add(mat2); // TODO: Anlamadim. ? matrices.add(distribute1s(i,mat2,limit));
+				}
 			}
 		}
-		/**int[][] array= new int[size][size];
-		for(int i=1;i<size-1;i++) {
-			array[0][i]=1;
+		return matrices;
+	}**/
+	
+	public static List<int[][]> simpleBondAdd(IAtomContainer ac, int[][] mat, int limit) throws CloneNotSupportedException {
+		int size= ac.getAtomCount();
+		int remaining=remaining(limit,mat);
+		List<int[][]> matrices= new ArrayList<int[][]>();
+		for(int i= remaining;i>0;i--) { //(size-1-sum(mat))
+			int[][] mat2= distribute1s(i,mat,limit);
+			if(zeroColumnCheck(mat2)) {
+				if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
+					matrices.add(mat2); // TODO: Anlamadim. ? matrices.add(distribute1s(i,mat2,limit));
+				}
+			}
 		}
-		array[2][size-1]=1;
-		if(sum(array)>=size-1 && valenceCheck(mat)) {
-			matrices.add(array);
-		}**/
 		return matrices;
 	}
 	
@@ -537,17 +588,15 @@ public class deneme {
 		return matrices;
 	}
 	
-	public static List<int[]> rowsGen(int index) throws CloneNotSupportedException{
+	public static List<int[]> rowsGen(int index, int[][] mat) throws CloneNotSupportedException{
 		List<int[]> rows= new ArrayList<int[]>();
 		if(countIsotopes(index)==1) {
-			int value=Math.min(valence[index], size-index-1);
+			int value=Math.min(valence[index]-sum(mat[index]), (size-(index+1)));
 			for(int[] array:partition1s(value,value,size-(index+1),0)) {
-				int zeros=size-array.length;
-				array=addZerosF(array,zeros);
 				rows.add(array);
 			}
 		}else {
-			int[] iso= isotopes(index);			
+			int[] iso= isotopes(index);	
 			for(int[] arr:partition(valence[index],valence[index],countIsotopes(index),0)){
 				LinkedList<List <int[]>> lists = new LinkedList<List <int[]>>();
 				for(int i=0;i<arr.length;i++) {
@@ -555,18 +604,36 @@ public class deneme {
 					lists.add(list);
 				}
 				List<int[]> combined=combineArrays(lists);
-				rows.addAll(combined);
+				for(int[] c:combined) {
+					if(arrayNotIn(rows,c)) {
+						rows.add(c);
+					}
+				}
+				//rows.addAll(combined);
 			}
 		}
 		return rows;
 	}
+	
+	public static boolean arrayNotIn(List<int[]> ar,int[] r) {
+		boolean check=true;
+		for(int[] i:ar) {
+			if(Arrays.equals(i, r)) {
+				check=false;
+				break;
+			}
+		}
+		return check;
+	}
+	// Rows can start also with zeros, but in the second version it is a must to start always with 1.
+	// This condition helps us to deal with duplicates.
 	public static List<int[]> rowsGen2(int index) throws CloneNotSupportedException{
 		List<int[]> rows= new ArrayList<int[]>();
 		int value=Math.min(valence[index], size-index-1);
 		for(int v=value;v>0;v--) {
 			for(int[] array:part1s(v,v,size-(index+1),0)) {
-				int zeros=size-array.length;
-				array=addZerosF(array,zeros);
+				//int zeros=size-array.length;
+				//array=addZerosF(array,zeros); //We dont wanna add the zeros; so in the matrix construction, we will add the entries of the previous line.
 				rows.add(array);
 			}
 		}
@@ -760,21 +827,10 @@ public class deneme {
 		return array;
 	}
 	
-	public static List<int[]> dist1s(int number, int index){
-		List<int[]> arrays= new ArrayList<int[]>();
-		IntStream range = IntStream.rangeClosed(0,1);
-		int[] array= new int[size];
-		for(int i=0;i<index+1;i++) {
-			array[i]=0;
-		}
-		for(int i=0;i<size-index-1;i++) {
-			
-		}
-		return arrays;
-	}
-	public static int remaining(int row) {
-		int count=0;
-		for(int i=row;i<size-1;i++) {
+
+	public static int remaining(int row, int[][] mat) {
+		int count=0; // Counting the empty spaces.
+		for(int i=row;i<size;i++) {
 			count=count+(size-i-1);
 		}
 		return count;
@@ -788,6 +844,7 @@ public class deneme {
 				count++;
 				if(count<=bonds) {
 					copy[i][j]=1;
+					copy[j][i]=1;
 				}
 			}
 		}
@@ -922,7 +979,7 @@ public class deneme {
 		}**/
 	
 		deneme distribution= new deneme();
-		String[] arguments1= {"-f","C3H3OO","-v"};
+		String[] arguments1= {"-f","CH3OO","-v"};
 		try {
 			distribution.parseArguments(arguments1);
 			deneme.run(deneme.formula);
