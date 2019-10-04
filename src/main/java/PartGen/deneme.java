@@ -286,29 +286,34 @@ public class deneme {
 					say--;
 				}
 			}
-		}**/
+		}
+		
+		//Burada birden fazla index varsa
 		int limit= lastIsotopeIndex(); 
 		multiGen(0,limit,matrices,output);
+		int c=0;
 		for(int[][] mat: output) {
-			Arrays.deepToString(mat);
-			if(limit<size-1) {
-				output2.addAll(simpleBondAdd(ac,mat,limit));
-			}
+			System.out.println(Arrays.deepToString(mat)+" "+c);
+			output2.addAll(simpleBondAdd(mat,limit));
+			c++;
+			//if(limit<size-1) {
+				//output.addAll(simpleBondAdd(mat,limit));
+			//}
 			
 		}
 		//count=output.size();
 		//result=output;
 		int count2=0;
 		int count=0;
-		for(int[][] mat:output) {
+		for(int[][] mat:output2) {
 			System.out.println(Arrays.deepToString(mat));
 		}
-		for(IAtomContainer acon: generateAtomContainers(output)) {
+		for(IAtomContainer acon: generateAtomContainers(output2)) {
 			depict(acon,"C:\\Users\\mehme\\Desktop\\output\\"+count+".png");
 			count++;
-		}
+		}**/
 		
-		/**
+		
 		setValues(formula);
 		if(verbose) {
 			System.out.println("For molecular formula "+ formulaString +", calculating all the possible distributions of "+totalHydrogen+" "+"hydrogens ..." );
@@ -316,8 +321,8 @@ public class deneme {
 		Set<int[][]> result= new HashSet<int[][]>();
 		int count=0;
 		if(isotopes==1) {
-			Set<int[][]> matrices= new HashSet<int[][]>();
-			Set<int[][]> output= new HashSet<int[][]>();
+			//Set<int[][]> matrices= new HashSet<int[][]>();
+			//Set<int[][]> output= new HashSet<int[][]>();
 			for(int[] array:distribute1s(size-1,size-1)) {
 				if(sum(array)!=0) {
 					int zeros=size-array.length;
@@ -470,7 +475,7 @@ public class deneme {
 	public static Set<int[][]> multiGen(int index,int limit,Set<int[][]> matrices,Set<int[][]> output) throws CloneNotSupportedException {
 		if(index==limit) {
 			for(int[][] mat:matrices) {
-				if(valenceCheck(mat) && sum(mat)/2>=size-1) { //Minimal number of bonds is the number of atoms minus 1.
+				if(valenceCheck(mat)) { //sum(mat)/2 not enough just to ask higher than size-1. eger ilk satrda bir tane var gerisi ayni ise ilk satira o kadar dolmaz da.Minimal number of bonds is the number of atoms minus 1.
 					if(MatNotIn(output,mat)) {
 						output.add(mat);
 					}
@@ -484,6 +489,7 @@ public class deneme {
 					if(sum(arr)!=0) {
 						int[][] mat= new int[size][size];
 						setEntries(mat,index,arr);
+						System.out.println(Arrays.deepToString(mat)+" "+"multiGen");
 						matrices.add(mat);
 						multiGen((index+1),limit,matrices,output);
 					}
@@ -548,17 +554,19 @@ public class deneme {
 		return matrices;
 	}**/
 	
-	public static List<int[][]> simpleBondAdd(IAtomContainer ac, int[][] mat, int limit) throws CloneNotSupportedException {
-		int size= ac.getAtomCount();
+	public static List<int[][]> simpleBondAdd(int[][] mat, int limit) throws CloneNotSupportedException {
+		System.out.println(size);
 		int remaining=remaining(limit,mat);
+		System.out.println("remaining"+" "+remaining);
 		List<int[][]> matrices= new ArrayList<int[][]>();
 		for(int i= remaining;i>0;i--) { //(size-1-sum(mat))
 			int[][] mat2= distribute1s(i,mat,limit);
-			if(zeroColumnCheck(mat2)) {
-				if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
+			//if(zeroColumnCheck(mat2)) {
+				//(if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
+					System.out.println(Arrays.toString(mat2));
 					matrices.add(mat2); // TODO: Anlamadim. ? matrices.add(distribute1s(i,mat2,limit));
-				}
-			}
+				//}
+			//}
 		}
 		return matrices;
 	}
@@ -841,10 +849,12 @@ public class deneme {
 		int[][] copy=copy(mat);
 		for(int i=limit;i<size;i++) {
 			for(int j=i+1;j<size;j++) {
-				count++;
-				if(count<=bonds) {
-					copy[i][j]=1;
-					copy[j][i]=1;
+				for(int k=0;k<=(valence[i]-sum(mat[i]));k++) {
+					count++;
+					if(count<=bonds) {
+						copy[i][j]=1;
+						copy[j][i]=1;
+					}
 				}
 			}
 		}
@@ -979,7 +989,7 @@ public class deneme {
 		}**/
 	
 		deneme distribution= new deneme();
-		String[] arguments1= {"-f","CH3OO","-v"};
+		String[] arguments1= {"-f","C6H6O","-v"};
 		try {
 			distribution.parseArguments(arguments1);
 			deneme.run(deneme.formula);
