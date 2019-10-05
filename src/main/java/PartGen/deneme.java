@@ -24,11 +24,16 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.openscience.cdk.depict.DepictionGenerator;
 import org.openscience.cdk.exception.CDKException;
+import org.openscience.cdk.graph.GraphUtil;
+import org.openscience.cdk.graph.invariant.Canon;
+import org.openscience.cdk.graph.invariant.MorganNumbersTools;
+import org.openscience.cdk.inchi.InChIGeneratorFactory;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IChemObjectBuilder;
 import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
+import org.openscience.cdk.signature.MoleculeSignature;
 import org.openscience.cdk.interfaces.IBond.Order;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
@@ -558,16 +563,15 @@ public class deneme {
 	 */
 	
 	public static List<int[][]> simpleBondAdd(int[][] mat, int limit) throws CloneNotSupportedException {
-		System.out.println(size);
 		int remaining=remaining(limit,mat);
 		List<int[][]> matrices= new ArrayList<int[][]>();
-		for(int i= remaining;i>0;i--) { 
+		for(int i= remaining;i>=0;i--) { 
 			int[][] mat2= distribute1s(i,mat,limit);
-			//if(zeroColumnCheck(mat2)) {
-				//(if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
+			if(zeroColumnCheckAll(mat2)) {
+				if(sum(mat2)>=size-1 && valenceCheck(mat2)) {
 					matrices.add(mat2); 
-				//}
-			//}
+				}
+			}
 		}
 		return matrices;
 	}
@@ -603,21 +607,37 @@ public class deneme {
 		}
 		return check;
 	}
+	//TODO: I dont know whether there should be a zero column or not.Should check.
+	
+	public static boolean zeroColumnCheckAll(int[][] mat) {
+		boolean check=true;
+		for(int i=0;i<size;i++) {
+			if(sum(getColumn(mat,i))==0) {
+				check=false;
+			}
+		}
+		return check;
+	}
 	
 	/**
 	 * Generating atomContainers for a list of adjacency matrices.
 	 * @param adcacencyMatrices int matrices
 	 * @return
 	 * @throws CloneNotSupportedException
+	 * @throws CDKException 
 	 */
 	
-	public static List<IAtomContainer> generateAtomContainers(Set<int[][]> adcacencyMatrices) throws CloneNotSupportedException{
-		LinkedHashSet<IAtomContainer> check = new LinkedHashSet<IAtomContainer>();
+	public static List<IAtomContainer> generateAtomContainers(Set<int[][]> adjacencyMatrices) throws CloneNotSupportedException, CDKException{
+		Set<String> check = new HashSet<String>();
 		ArrayList<IAtomContainer> acontainers = new ArrayList<IAtomContainer>();
-		for(int[][] adjacency:adcacencyMatrices) {
+		for(int[][] adjacency:adjacencyMatrices) {
 			IAtomContainer ac=acontainer.clone();
 			IAtomContainer newAc=setBonds(ac,adjacency);
-			if (check.add(newAc)) acontainers.add(newAc);
+			MoleculeSignature molSig = new MoleculeSignature(newAc);			
+			String can=molSig.toCanonicalString();
+			if (check.add(can)) {
+				acontainers.add(newAc);
+			}
 		}
 		return acontainers;
 	}
@@ -702,29 +722,25 @@ public class deneme {
 			for(int b= valenceTotal;b>size-1;b--) {
 				output.add(distribute1s(b));
 			}
-			count=output.size();
 			result= output;
 		}else {
 			int limit= lastIsotopeIndex(); 
 			multiGen(0,limit,matrices,output);
-			int c=0;
 			for(int[][] mat: output) {
 				output2.addAll(simpleBondAdd(mat,limit));
-				c++;
 			}
-			count=output2.size();
 			result=output2;
-		}
-		if(verbose) {
-			System.out.println("Number of distributions: "+count);
 		}
 		long endTime = System.nanoTime()- startTime;
         double seconds = (double) endTime / 1000000000.0;
 		DecimalFormat d = new DecimalFormat(".###");
+		List<IAtomContainer> acontainers=generateAtomContainers(result);
+		count=acontainers.size();
 		if(verbose) {
+			System.out.println("Number of distributions: "+count);
 			System.out.println("Duration:"+" "+d.format(seconds));
 		}
-		return generateAtomContainers(result);
+		return acontainers;
 	}
 	
 	void parseArguments(String[] arguments) throws ParseException
@@ -767,10 +783,14 @@ public class deneme {
 	}
 	public static void main(String[] arguments) throws FileNotFoundException, UnsupportedEncodingException, CloneNotSupportedException {
 		deneme distribution= new deneme();
-		String[] arguments1= {"-f","CCH40","-v"};
+		String[] arguments1= {"-f","CCH4O","-v"};
 		try {
 			distribution.parseArguments(arguments1);
-			deneme.run(deneme.formula);
+			int count=0;
+			for(IAtomContainer ac:deneme.run(deneme.formula)) {
+				deneme.depict(ac, "C:\\Users\\mehme\\Desktop\\output\\"+count+".png");
+				count++;
+			}
 		} catch (Exception e) {
 			if (deneme.verbose) e.getCause(); 
 		}
