@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/207172204.svg)](https://zenodo.org/badge/latestdoi/207172204)
+
 # PartGen
 
 Copyright 2019 Mehmet Aziz Yirik
